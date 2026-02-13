@@ -1,0 +1,141 @@
+/*mainwindow 样式*/
+MainWindow {
+    /* 背景色 */
+    background-color:rgb(46,47,48);
+}
+
+/*菜单栏基本样式*/
+QMenuBar{
+    color:rgb(231,231,231);
+    background-color:rgb(46,47,48);
+}
+
+/*菜单基本样式*/
+QMenu{
+    color:rgb(231,231,231);
+    background-color:rgb(55,55,55);
+}
+
+
+/* 菜单栏选中条目时 */
+
+QMenuBar::item:selected {
+        background-color:rgb(80,80,80);
+}
+
+/*菜单选中条目*/
+QMenu::item:selected {
+    background-color:rgb(39,96,154);
+}
+
+
+protree {
+    border-color: #9F9F9F;
+    border-style: solid;
+    border-width: 1px 1px 1px 1px;
+    padding-right: 10px;
+}
+
+QLabel#label_pro {
+    color: rgb(231,231,231);
+    border-color: #9F9F9F;
+    border-style: dotted;
+    border-width: 0 0 1px 0;
+    padding-bottom: 10px;
+    margin-bottom: 5px;
+}
+
+picshow {
+    border-color: #9F9F9F;
+    border-style: solid;
+    border-width: 1px 1px 1px 1px;
+    padding: 10px;
+    background: rgb(64,66,68);
+}
+
+QWizard {
+    color:rgb(231,231,231);
+    background-color:rgb(46,47,48);
+}
+
+QWizard QLabel#tips {
+    color: red;
+}
+
+QTreeView {
+    color:rgb(231,231,231);
+    background-color:rgb(46,47,48);
+    border: 0px;
+}
+
+QTreeView::item:hover {
+    background: rgb(38, 95, 153);
+}
+
+QTreeView::item:selected {
+    background: rgb(38, 95, 153);
+}
+
+/*设置选中条目字体变粗*/
+#TreeProActiveItem {
+    font-weight:bold;
+}
+
+
+QTreeView::branch:open:has-children:!has-siblings,
+QTreeView::branch:open:has-children:has-siblings
+{image: url(:/icon/down.png);}
+
+
+QTreeView::branch:closed:has-children:!has-siblings,
+QTreeView::branch:closed:has-children:has-siblings
+{image: url(:/icon/right.png);}
+
+#next_btn,#closeBtn,#previous_btn  {
+    border: 0px;
+}
+ {
+    color:rgb(231,231,231);
+    background-color:rgb(46,47,48);
+}
+
+/* 主对话框样式 */
+slideshowdialog {
+    color: rgb(231,231,231);
+    background-color: rgb(46,47,48);
+    border: 0px;
+}
+
+/* 列表项悬停效果 */
+#pre_show_list::item:hover {
+    background: rgb(38, 95, 153);
+}
+
+/* 列表项选中效果 */
+#pre_show_list::item:selected {
+    background: rgb(38, 95, 153);
+}
+
+/* 按钮样式 */
+#pre_btn1, #next_btn1, #play_slide, #closed_slide {
+    border: 0px;
+}
+
+/* 边距设置 */
+#pre_widget {
+    margin-left: 10px;
+}
+
+#next_widget {
+    margin-right: 10px;
+}
+
+/* 选中项边框 */
+#pre_show_list::item:selected:active {
+    border: 2px solid #FFFFFF;
+}
+
+#pre_show_list::item:selected {
+    border: 2px solid #FFFFFF;
+}
+

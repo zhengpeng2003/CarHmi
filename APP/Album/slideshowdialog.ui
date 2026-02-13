@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>slideshowdialog</class>
+ <widget class="QDialog" name="slideshowdialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>797</width>
+    <height>541</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">    color: rgb(231,231,231);
+    background-color: rgb(46,47,48);
+    border: 0px;</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_2" stretch="1,7">
+   <item>
+    <widget class="QWidget" name="widget" native="true">
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="1" column="2">
+       <widget class="QWidget" name="next_widget" native="true">
+        <property name="maximumSize">
+         <size>
+          <width>80</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <layout class="QHBoxLayout" name="horizontalLayout_4">
+         <item>
+          <widget class="picbutton" name="next_btn1">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="picanimation" name="animation_widget" native="true"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QWidget" name="pre_widget" native="true">
+        <property name="minimumSize">
+         <size>
+          <width>80</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>80</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <layout class="QHBoxLayout" name="horizontalLayout_5">
+         <item>
+          <widget class="picbutton" name="pre_btn1">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QWidget" name="widget_6" native="true">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>80</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>80</height>
+         </size>
+        </property>
+        <layout class="QHBoxLayout" name="horizontalLayout_3">
+         <item>
+          <widget class="slidebutton" name="play_slide">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="picbutton" name="close_slide">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QWidget" name="pre_show" native="true">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>130</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>130</height>
+      </size>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <widget class="QWidget" name="widget_3" native="true">
+        <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <item>
+          <widget class="piclistwidget" name="pre_show_list">
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>110</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>110</height>
+            </size>
+           </property>
+           <property name="flow">
+            <enum>QListView::LeftToRight</enum>
+           </property>
+           <property name="isWrapping" stdset="0">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>picbutton</class>
+   <extends>QPushButton</extends>
+   <header location="global">picbutton.h</header>
+  </customwidget>
+  <customwidget>
+   <class>slidebutton</class>
+   <extends>QPushButton</extends>
+   <header location="global">slidebutton.h</header>
+  </customwidget>
+  <customwidget>
+   <class>picanimation</class>
+   <extends>QWidget</extends>
+   <header location="global">picanimation.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>piclistwidget</class>
+   <extends>QListWidget</extends>
+   <header location="global">piclistwidget.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
