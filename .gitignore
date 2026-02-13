@@ -1,0 +1,32 @@
+# Qt Creator files
+*.user
+*.user.*
+*.autosave
+
+# Build directories
+build/
+*-build/
+Desktop/build/
+
+# Compiled Object files
+*.o
+*.obj
+*.exe
+*.out
+*.app
+
+# Qt generated files
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+Makefile
+Makefile.*
+
+# Backup files
+*~
+*.bak
+
+# Project specific
+Desktop/Desktop.pro.user
+Desktop/iMX6ULLS1-Pro.pro.user
