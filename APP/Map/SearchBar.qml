@@ -2,38 +2,66 @@ import QtQuick 2.11
 import QtQuick.Controls 2.4
 
 Rectangle {
-    width: 200
-    height: 30
-    anchors.left: parent.left
-    anchors.top: parent.top
-    anchors.margins: 5
+    id: root
+    height: 54
     color: "#66000000"
+    radius: 4
 
-    signal search(string text)
-    property string inputText: ""
+    property string text: ""
+    property string message: ""
 
-    Text {
-        anchors.centerIn: parent
-        text: inputText
-        color: "white"
-    }
+    signal requestKeyboard()
+    signal searchRequested(string keyword)
 
-    MouseArea {
+    Column {
         anchors.fill: parent
-        onClicked: keyboard.visible = true
-    }
+        anchors.margins: 4
+        spacing: 4
 
-    Keyboard {
-        id: keyboard
-        anchors.bottom: parent.bottom
-        visible: false
-        onKeyPressed: inputText += key
-    }
+        Row {
+            width: parent.width
+            height: 26
+            spacing: 4
 
-    MouseArea {
-        anchors.right: parent.right
-        width: 40
-        height: parent.height
-        onClicked: search(inputText)
+            TextField {
+                id: textField
+                width: parent.width - searchButton.width - 4
+                height: parent.height
+                readOnly: true
+                text: root.text
+                placeholderText: "输入城市拼音"
+                color: "white"
+                selectByMouse: false
+
+                background: Rectangle {
+                    radius: 2
+                    color: "#22313f"
+                    border.width: 1
+                    border.color: "#95a5a6"
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: root.requestKeyboard()
+                }
+            }
+
+            Button {
+                id: searchButton
+                width: 56
+                height: parent.height
+                text: "搜索"
+                onClicked: root.searchRequested(root.text)
+            }
+        }
+
+        Text {
+            width: parent.width
+            height: 16
+            text: root.message
+            color: "#ffe08a"
+            font.pixelSize: 12
+            elide: Text.ElideRight
+        }
     }
 }

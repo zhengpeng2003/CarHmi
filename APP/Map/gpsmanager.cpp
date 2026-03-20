@@ -1,6 +1,12 @@
 #include "gpsmanager.h"
 #include <QDebug>
 #include <QDateTime>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QUrlQuery>
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -11,7 +17,8 @@ GPSManager::GPSManager(QObject *parent)
     : QObject(parent),
     useSerial(false),
     m_lat(39.9),
-    m_lng(116.3)
+    m_lng(116.3),
+    networkManager(new QNetworkAccessManager(this))
 {
     // 打开串口
     fd = open("/dev/ttymxc2", O_RDONLY | O_NOCTTY);
@@ -44,13 +51,13 @@ GPSManager::GPSManager(QObject *parent)
     timer = new QTimer(this);
     connect(timer, &QTimer::timeout,
             this, &GPSManager::readSerialData);
-    timer->start(200);
+    timer->start(1000);
 
     // 检测切换
     checkTimer = new QTimer(this);
     connect(checkTimer, &QTimer::timeout,
             this, &GPSManager::checkGpsSource);
-    checkTimer->start(2000);
+    checkTimer->start(1000);
 
     // 系统GPS
     sysGps = QGeoPositionInfoSource::createDefaultSource(this);
@@ -125,4 +132,86 @@ void GPSManager::checkGpsSource()
         useSerial = false;
         qDebug() << "switch to system gps";
     }
+}
+
+void GPSManager::searchPlace(const QString &keyword)
+{
+    const QString trimmedKeyword = keyword.trimmed();
+    if (trimmedKeyword.isEmpty()) {
+        m_searchMessage = QStringLiteral("请输入城市拼音");
+        emit searchMessageChanged();
+        emit searchFailed(trimmedKeyword);
+        return;
+    }
+
+    const QString apiKey = qEnvironmentVariable("AMAP_WEB_API_KEY");
+    if (apiKey.isEmpty()) {
+        m_searchMessage = QStringLiteral("当前搜索不到");
+        emit searchMessageChanged();
+        emit searchFailed(trimmedKeyword);
+        return;
+    }
+
+    QUrl url(QStringLiteral("https://restapi.amap.com/v3/geocode/geo"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("address"), trimmedKeyword);
+    query.addQueryItem(QStringLiteral("key"), apiKey);
+    url.setQuery(query);
+
+    m_searchMessage = QStringLiteral("搜索中...");
+    emit searchMessageChanged();
+
+    QNetworkReply *reply = networkManager->get(QNetworkRequest(url));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, trimmedKeyword]() {
+        reply->deleteLater();
+
+        if (reply->error() != QNetworkReply::NoError) {
+            m_searchMessage = QStringLiteral("当前搜索不到");
+            emit searchMessageChanged();
+            emit searchFailed(trimmedKeyword);
+            return;
+        }
+
+        const QJsonDocument document = QJsonDocument::fromJson(reply->readAll());
+        const QJsonObject object = document.object();
+        if (object.value(QStringLiteral("status")).toString() != QStringLiteral("1")) {
+            m_searchMessage = QStringLiteral("当前搜索不到");
+            emit searchMessageChanged();
+            emit searchFailed(trimmedKeyword);
+            return;
+        }
+
+        const QJsonArray geocodes = object.value(QStringLiteral("geocodes")).toArray();
+
+        if (geocodes.isEmpty()) {
+            m_searchMessage = QStringLiteral("当前搜索不到");
+            emit searchMessageChanged();
+            emit searchFailed(trimmedKeyword);
+            return;
+        }
+
+        const QString location = geocodes.first().toObject().value(QStringLiteral("location")).toString();
+        const QStringList parts = location.split(",");
+        if (parts.size() != 2) {
+            m_searchMessage = QStringLiteral("当前搜索不到");
+            emit searchMessageChanged();
+            emit searchFailed(trimmedKeyword);
+            return;
+        }
+
+        bool lngOk = false;
+        bool latOk = false;
+        const double lng = parts.at(0).toDouble(&lngOk);
+        const double lat = parts.at(1).toDouble(&latOk);
+        if (!latOk || !lngOk) {
+            m_searchMessage = QStringLiteral("当前搜索不到");
+            emit searchMessageChanged();
+            emit searchFailed(trimmedKeyword);
+            return;
+        }
+
+        m_searchMessage = QStringLiteral("已定位到：") + trimmedKeyword;
+        emit searchMessageChanged();
+        emit searchLocationFound(lat, lng, trimmedKeyword);
+    });
 }
