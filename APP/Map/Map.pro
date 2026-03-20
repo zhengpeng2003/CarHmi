@@ -29,6 +29,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 DISTFILES += \
+    Keyboard.qml \
     MapTypePanel.qml \
     MapView.qml \
     MapView阿.qml \

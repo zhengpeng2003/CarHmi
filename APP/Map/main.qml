@@ -1,77 +1,54 @@
 import QtQuick 2.11
 import QtQuick.Controls 2.4
-import QtPositioning 5.11
-import QtLocation 5.11
 
 Rectangle {
     width: 480
     height: 272
+    color: "black"
 
-    Plugin {
-        id: mapPlugin
-        name: "amap"
-    }
-
-    Map {
-        id: map
+    MapView {
+        id: mapView
         anchors.fill: parent
-        plugin: mapPlugin
-        zoomLevel: 15
-
-        center: QtPositioning.coordinate(
-            gpsManager.latitude,
-            gpsManager.longitude
-        )
-
-        Connections {
-            target: gpsManager
-            onPositionChanged: {
-                map.center = QtPositioning.coordinate(lat, lng)
-            }
-        }
     }
 
-    // 搜索框（预留）
-    Rectangle {
-        width: 180
-        height: 28
+    SearchBar {
+        id: searchBar
+        width: 250
         anchors.left: parent.left
         anchors.top: parent.top
-        anchors.margins: 5
-        color: "#66000000"
+        anchors.margins: 8
+        text: keyboard.inputText
+        message: gpsManager.searchMessage
 
-        TextField {
-            anchors.fill: parent
-            anchors.margins: 2
-            placeholderText: "搜索"
+        onRequestKeyboard: keyboard.visible = true
+        onSearchRequested: {
+            keyboard.visible = false
+            gpsManager.searchPlace(keyword)
         }
     }
 
-    // 右侧地图类型
-    Column {
+    MapTypePanel {
         anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        spacing: 4
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.topMargin: 8
+        anchors.rightMargin: 8
+        anchors.bottomMargin: keyboard.visible ? keyboard.height + 8 : 8
+        mapObj: mapView.mapObj
+    }
 
-        Repeater {
-            model: map.supportedMapTypes
+    Keyboard {
+        id: keyboard
+        width: parent.width
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        visible: false
 
-            delegate: Rectangle {
-                width: 70
-                height: 26
-                color: "#66000000"
-
-                Text {
-                    anchors.centerIn: parent
-                    text: modelData.name
-                    color: "white"
-                    font.pixelSize: 10
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: map.activeMapType = modelData
-                }
+        onEnterPressed: {
+            if (inputText.length > 0) {
+                visible = false
+                gpsManager.searchPlace(inputText)
             }
         }
     }

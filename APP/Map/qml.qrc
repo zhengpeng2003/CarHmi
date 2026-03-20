@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
+        <file>Keyboard.qml</file>
         <file>main.qml</file>
         <file>MapTypePanel.qml</file>
         <file>MapView.qml</file>
