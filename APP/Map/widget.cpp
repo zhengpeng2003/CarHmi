@@ -1,7 +1,8 @@
 #include "widget.h"
 #include "ui_widget.h"
 #include <QQmlContext>
-
+#include <QSslSocket>
+#include <QDebug>
 Widget::Widget(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::Widget)
@@ -20,6 +21,8 @@ Widget::Widget(QWidget *parent)
 
     quickWidget->setSource(QUrl("qrc:/main.qml"));
     quickWidget->setGeometry(0, 0, width(), height());
+
+
 }
 
 Widget::~Widget()

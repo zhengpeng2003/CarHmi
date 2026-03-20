@@ -53,7 +53,7 @@ Rectangle {
 
                     delegate: Button {
                         width: 42
-                        height: 26
+                        height: 20
                         text: modelData
                         onClicked: root.appendKey(text)
                     }
