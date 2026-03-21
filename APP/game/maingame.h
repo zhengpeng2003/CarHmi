@@ -17,6 +17,11 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QTimer>
+#include <QGraphicsScene>
+#include <QGraphicsView>
+#include <QPointer>
+#include <QHash>
+#include <functional>
 #include <QCloseEvent>
 #include <anmationpixmap.h>
 #include <endpanel.h>
@@ -160,6 +165,15 @@ private:
     void beginGameStartSequence();
     void runGameStartStep(int step);
     void ensureLordCardPanels();
+    void ensureGraphicsView();
+    void prepareCardPixmaps();
+    void createCardItemsInBatches();
+    void finalizeCardItemCreation();
+    void beginSerializedDealing();
+    void scheduleDealStep();
+    QPoint handBasePos(int index, int cardCount, bool selected) const;
+    qreal handRotation(int index, int cardCount) const;
+    int handSpacing(int cardCount) const;
     QPoint _Base_point;
     QPixmap _IMage_Map;
     QPixmap _IMage_Cards;
@@ -167,12 +181,13 @@ private:
     QSize _IMage_Card_Size;
     gamecontrol * _Gamecontrol = nullptr;
     QVector<player*> _Players;//玩家
-    QMap<Card,CardPanel*>_CardPenelMap;//卡牌的图片
+    QMap<Card,CardPanel*>_CardPenelMap;//卡牌图元
+    QHash<Card, QPair<QPixmap,QPixmap>> _CardPixmapMap;
     int _Movetime;
 
     QMap<player*,_Playercontext*> _Playercontexts;//卡牌在谁手上
-    CardPanel *_PendCards = nullptr;//发的牌
-    CardPanel *_MoveCards = nullptr;//移动牌
+    CardPanel *_PendCards = nullptr;//牌堆背面
+    CardPanel *_MoveCards = nullptr;//发牌中的移动牌
     CardPanel *_LordCards[3] = {nullptr, nullptr, nullptr};//地主牌
     QSet<CardPanel*> _SelcetPanel;//被选中的牌
     QHash<CardPanel *,QRect> _PanelPositon;
@@ -200,6 +215,12 @@ private:
     int _GameStartSequenceId = 0;
     QSet<int> _CompletedStages;
     QPushButton *_ExitButton = nullptr;
+    QGraphicsView *_CardView = nullptr;
+    QGraphicsScene *_CardScene = nullptr;
+    QVector<Card> _CardCreationQueue;
+    int _CardCreationIndex = 0;
+    bool _CardCreationRunning = false;
+    int _PendingDealCount = 0;
 
 };
 #endif // MAINGAME_H

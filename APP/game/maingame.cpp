@@ -1,20 +1,20 @@
 ﻿#include "maingame.h"
 #include "qpainter.h"
 #include "ui_maingame.h"
-// 1
-#include <QMouseEvent>
 #include <QCloseEvent>
+#include <QGraphicsScene>
+#include <QGraphicsView>
+#include <QGraphicsDropShadowEffect>
+#include <QMouseEvent>
 #include <QMessageBox>
-#include <QTimer>
-#include <algorithm>
-#include <QPushButton>
-//2222
-#include "maingame.h"
-#include "ui_maingame.h"
-
+#include <QParallelAnimationGroup>
+#include <QPropertyAnimation>
 #include <QPushButton>
 #include <QRandomGenerator>
+#include <QSequentialAnimationGroup>
 #include <QPainter>
+#include <QTimer>
+#include <algorithm>
 #include "gameresourcecache.h"
 #include "gamescaling.h"
 
@@ -45,6 +45,11 @@ struct LayoutMetrics {
 LayoutMetrics metrics()
 {
     return LayoutMetrics{};
+}
+
+QPoint scaledPoint(int x, int y)
+{
+    return GameScaling::point(x, y);
 }
 }
 
@@ -332,53 +337,16 @@ void Maingame::ShowPlayerInfoImage(player *player, const QPixmap &pixmap)
 //初始化卡牌
 void Maingame::InitCardpanelMap()
 {
-    if (!_IMage_Cards.load(":/images/card.png")) {
-        qWarning() << "card.png 资源加载失败";
+    prepareCardPixmaps();
+}
+void Maingame::InitCardImage(QPixmap Card_front,QPixmap Card_back,Card *card)
+{
+    if (!card) {
         return;
     }
-    _IMage_Card_Size = GameScaling::size(metrics().playerCardSize.width(), metrics().playerCardSize.height());
-
-    const int sheetCardWidth = _IMage_Cards.width() / 13;
-    const int sheetCardHeight = _IMage_Cards.height() / 5;
-    _Card_back=_IMage_Cards.copy(sheetCardWidth * 2, sheetCardHeight * 4, sheetCardWidth, sheetCardHeight);//背面图像
-    for(int i=0;i<13;i++)//点数
-    {
-        for(int j=0;j<4;j++)//花色
-        {
-            Card::cardpoint point=(Card::cardpoint)(i+1);
-            Card::cardsuit suit=(Card::cardsuit)(j+1);
-            Card *TempCard=new Card(suit,point);
-            QPixmap Temppixmap=_IMage_Cards.copy(sheetCardWidth * i, sheetCardHeight * j,
-                                                   sheetCardWidth, sheetCardHeight);
-            InitCardImage(Temppixmap,_Card_back,TempCard);//插入卡牌 图片显示问题
-
-        }
-    }
-    QPixmap TemppixmapSJ=_IMage_Cards.copy(0, sheetCardHeight * 4,
-                                             sheetCardWidth, sheetCardHeight);//大王牌
-    QPixmap TemppixmapBJ=_IMage_Cards.copy(sheetCardWidth, sheetCardHeight * 4,
-                                             sheetCardWidth, sheetCardHeight);//小王牌
-    Card *CardSJ=new Card(Card::Suit_Begin,Card::Card_SJ);
-    Card *CardBJ=new Card(Card::Suit_Begin,Card::Card_BJ);
-    InitCardImage(TemppixmapSJ,_Card_back,CardSJ);
-    InitCardImage(TemppixmapBJ,_Card_back,CardBJ);
-
+    _CardPixmapMap.insert(*card, qMakePair(Card_front, Card_back));
 }
 
-void Maingame::InitCardImage(QPixmap Card_front,QPixmap Card_back,Card *card)//设置卡牌图片初始化
-{
-    CardPanel * cardpenel=new CardPanel(this);
-    cardpenel->setimage(Card_front,Card_back);
-    cardpenel->setcard(card);
-    cardpenel->resize(_IMage_Card_Size);
-    cardpenel->hide();//隐藏
-    connect(cardpenel,&CardPanel::S_Cardsselect,this,&Maingame::Cardpanel);
-    _CardPenelMap.insert(*card,cardpenel);
-    _CardPenelMap.size();
-
-}
-
-//
 void Maingame::InitGroupbtn()
 {
     const LayoutMetrics m = metrics();
@@ -474,16 +442,17 @@ void Maingame::beginGameStartSequence()
 
     _GameLaunchPending = true;
     ++_GameStartSequenceId;
-    for (int step = 0; step < 3; ++step) {
-        QTimer::singleShot(step * 10, this, [this, step, sequenceId = _GameStartSequenceId]() {
-            if (sequenceId != _GameStartSequenceId) {
-                return;
-            }
-            runGameStartStep(step);
-        });
-    }
+    ensureGraphicsView();
+    QTimer::singleShot(0, this, [this, sequenceId = _GameStartSequenceId]() {
+        if (sequenceId == _GameStartSequenceId) runGameStartStep(0);
+    });
+    QTimer::singleShot(50, this, [this, sequenceId = _GameStartSequenceId]() {
+        if (sequenceId == _GameStartSequenceId) runGameStartStep(1);
+    });
+    QTimer::singleShot(100, this, [this, sequenceId = _GameStartSequenceId]() {
+        if (sequenceId == _GameStartSequenceId) runGameStartStep(2);
+    });
 }
-
 void Maingame::runGameStartStep(int step)
 {
     switch (step) {
@@ -491,19 +460,19 @@ void Maingame::runGameStartStep(int step)
         ResetCountdown();
         _CanSelectCards = false;
         _IsUserFirstLordPlay = false;
+        ClearSelectedPanels();
         if (_MyAnmation) {
             _MyAnmation->hide();
         }
         ui->widget->Setbtngroupstate(MybuttonGroup::Null);
+        _Gamecontrol->RetCardDate();
+        _Gamecontrol->SetCurrentPlayer(_Gamecontrol->GetUSer());
         break;
     case 1:
-        SatrtPend();
+        createCardItemsInBatches();
         break;
     case 2:
-        if (_Bgmcontrol) {
-            _Bgmcontrol->StartBgm();
-        }
-        _GameLaunchPending = false;
+        beginSerializedDealing();
         break;
     default:
         break;
@@ -511,185 +480,28 @@ void Maingame::runGameStartStep(int step)
 }
 void Maingame::SatrtPend()
 {
-    if (!_Gamecontrol || !_Timer_PlayHand || !_Bgmcontrol || !_MyAnmation) {
-        return;
-    }
-    ui->widget->SetStartButtonVisible(false);
-    _CanSelectCards = false;
-    _Movetime = 0;
-    ClearSelectedPanels();
-
-    // 每局开始时重置抢分/动画控件到固定位置，避免上一局动画改变坐标
-    _MyAnmation->setFixedSize(GameScaling::size(160, 98));
-    _MyAnmation->move((width()-_MyAnmation->width())/2, (height()-_MyAnmation->height())/2-140);
-    _MyAnmation->hide();
-
-    // 恢复发牌动画控件的基准位置，确保每局都有完整发牌过程
-    if(_PendCards && _MoveCards)
-    {
-        _PendCards->move(_Base_point);
-        _MoveCards->move(_Base_point);
-        _PendCards->show();
-        _MoveCards->show();
-    }
-    // 1. 立刻隐藏/清空上一局的所有出牌
-    for(auto it = _Playercontexts.begin(); it != _Playercontexts.end(); ++it)
-    {
-        auto ctx = it.value();
-
-        // 确保指针有效，避免上一局清空后留下空指针导致重新开局崩溃
-        if(!ctx->_Last_Cards)
-        {
-            ctx->_Last_Cards = new Cards();
-        }
-
-        if(!ctx->_Last_Cards->isempty())
-        {
-            QListcard list = ctx->_Last_Cards->Listcardssort();
-            for(const Card& c : list)
-            {
-                auto panel = _CardPenelMap.value(c);
-                if(panel) panel->hide();
-            }
-            ctx->_Last_Cards->clearcards();   // 清空数据
-        }
-        ctx->_NOCardlabel->hide();            // “不要”标签
-    }
-
-    // 2. 关掉闹钟
-    ResetCountdown();
-    // 开始循环播放发牌音效
-    //把所有卡片初始化
-    _Bgmcontrol->OtherBgm(Bgmcontrol::OtherSound::DISPATCH);
-    for(auto i =_CardPenelMap.begin();i!=_CardPenelMap.end();i++)
-    {
-
-        i.value()->setfront(false);
-        i.value()->setselect(false);
-    }
-    for(auto i=_Playercontexts.begin();i!=_Playercontexts.end();i++)
-    {
-
-        i.value()->_Mycards->clearcards();
-        i.value()->Isfront=false;
-    }
-
-    //开始发牌定时器启动
-    _Timer_PlayHand->start(15);
+    beginSerializedDealing();
 }
-
 void Maingame::PlayHandtimer(player * Player,int Movetime)
 {
-    if (!_Gamecontrol || !_Playercontexts.contains(Player) || !_MoveCards || !_PendCards) {
-        return;
-    }
-
-    QRect TempRect=_Playercontexts.find(Player).value()->_PLayerCardsRect;
-    auto x=TempRect.x();
-    auto y=TempRect.y();
-    int Cardpool=_Gamecontrol->GetCardcount();
-    if(Cardpool==3)
-    {
-
-
-        // 发牌结束音乐关闭
-        _Bgmcontrol->StopOtherBgm();
-        _Timer_PlayHand->stop();
-        _MoveCards->hide();
-        _PendCards->hide();
-        // 1. 取出三张地主牌
-        QVector<Card*> lordCards;
-        for (int i = 0; i < 3; ++i) {
-            Card* card = _Gamecontrol->TakeOneCard();
-            if (card) {
-                lordCards.append(card);
-
-            }
-        }
-
-        // 2. 创建显示面板
-        std::sort(lordCards.begin(), lordCards.end(), [](Card* a, Card* b) {
-            if (!a || !b) return a < b;
-            return a->getcardpoint() < b->getcardpoint();
-        });
-
-        ensureLordCardPanels();
-        const LayoutMetrics m = metrics();
-        for (int i = 0; i < lordCards.size(); ++i) {
-            Card* card = lordCards[i];
-            CardPanel* lordPanel = _LordCards[i];
-
-            if (lordPanel && _CardPenelMap.contains(*card)) {
-                lordPanel->setimage(_CardPenelMap[*card]->Getimagefont(), _Card_back);
-            }
-            const int totalWidth = m.lordCardSize.width() + (lordCards.size() - 1) * m.lordOverlap;
-            const int baseX = GameScaling::x((480 - totalWidth) / 2.0);
-            lordPanel->setGeometry(GameScaling::rect(0, 0, m.lordCardSize.width(), m.lordCardSize.height()));
-            lordPanel->move(baseX + i * GameScaling::x(m.lordOverlap), GameScaling::y(m.topOpponentY));
-            lordPanel->hide();
-            lordPanel->setfront(false);
-        }
-
-        // 3. 统一放回原牌
-        for (Card* card : lordCards) {
-            _Gamecontrol->GetAllCards()->add(card);
-        }
-
-        // qDebug() << "地主牌已放回牌堆";
-        SetCurrentGameStatue(gamecontrol::GETLORD);
-
-    }
-    if(Movetime<5)//移动的动画
-    {
-
-        const int move_size = GameScaling::x(50);//要固定一个长度
-        if(x==_xy[0].x()&&y==_xy[0].y())
-            _MoveCards->move(_Base_point.x()-Movetime*move_size,_Base_point.y());
-        if(x==_xy[2].x()&&y==_xy[2].y())
-            _MoveCards->move(_Base_point.x(),_Base_point.y()+Movetime*move_size);
-        if(x==_xy[1].x()&&y==_xy[1].y())
-            _MoveCards->move(_Base_point.x()+Movetime*move_size,_Base_point.y());
-
-    }
-    else
-    {
-        Card* drawnCard = _Gamecontrol->TakeOneCard();
-        if (!drawnCard) {
-            _Timer_PlayHand->stop();
-            _GameLaunchPending = false;
-            return;
-        }
-        Card tempCard(drawnCard->getcardsuit(), drawnCard->getcardpoint());  // 创建临时对象
-        if(!_CardPenelMap.contains(tempCard)) {
-            return;
-        }
-        Player->StoreGetCard(drawnCard);
-        PendCardplayer(Player);
-        _Movetime=0;
-        _Gamecontrol->SetCurrentPlayer(Player->GetNextPlayer());
-    }
+    Q_UNUSED(Player)
+    Q_UNUSED(Movetime)
 }
-
-void Maingame::InitMovepoint()
-{
-    for(int i=0;i<3;i++)
-    {
-        _xy[i]=QPoint(_Playercontexts.values().at(i)->_PLayerCardsRect.x(),_Playercontexts.values().at(i)->_PLayerCardsRect.y());
-    }
-}
-
 void Maingame::ensureLordCardPanels()
 {
     const LayoutMetrics m = metrics();
+    ensureGraphicsView();
     for (int i = 0; i < 3; ++i) {
         if (_LordCards[i]) {
             continue;
         }
-        _LordCards[i] = new CardPanel(this);
+        _LordCards[i] = new CardPanel();
+        _CardScene->addItem(_LordCards[i]);
         _LordCards[i]->setGeometry(GameScaling::rect(0, 0, m.lordCardSize.width(), m.lordCardSize.height()));
         _LordCards[i]->setimage(_Card_back, _Card_back);
         _LordCards[i]->setfront(false);
-        _LordCards[i]->hide();
+        _LordCards[i]->setVisible(false);
+        _LordCards[i]->setZValue(50 + i);
     }
 }
 
@@ -749,83 +561,86 @@ void Maingame::SetCurrentGameStatue(gamecontrol::GameState state)
 
 void Maingame::PendCardplayer(player *player)
 {
-
-
     Cards cards=player->GetCards();
     QListcard Listcard=cards.Listcardssort();
 
     for(auto i=0;i<Listcard.size();i++)
     {
-        CardPanel* cardpenl=_CardPenelMap[Listcard[i]];
+        CardPanel* cardpenl=_CardPenelMap.value(Listcard[i], nullptr);
         if(cardpenl)
         {
             cardpenl->setowner(*player);
             cardpenl->setselect(false);
         }
     }
-    PendCardpos(player);//放到卡牌位置
+    if (!_GameLaunchPending || _PendingDealCount <= 0) {
+        PendCardpos(player);
+    }
 }
 
 void Maingame::PendCardpos(player* player) {
+    if (!player || !_Playercontexts.contains(player)) {
+        return;
+    }
+
     const LayoutMetrics m = metrics();
     Cards cards = player->GetCards();
-    // 地主手牌展示强制按从小到大排序，便于识别
-    QListcard sortedCards = cards.Listcardssort(player->GetRole() == player::LORD ? Cards::ASC : Cards::ASC);
+    QListcard sortedCards = cards.Listcardssort(Cards::ASC);
     _Playercontext* context = _Playercontexts[player];
-    QRect rect = context->_PLayerCardsRect;
+    const QRect rect = context->_PLayerCardsRect;
     const int opponentCardSpace = GameScaling::y(m.verticalOverlap);
-    const int handCardSpace = GameScaling::x(m.handOverlap);
+
     if(context->_Align == Horizontal)
     {
         _PanelPositon.clear();
+        _Mycardsrect = QRect();
     }
 
     for(int i = 0; i < sortedCards.size(); i++) {
-        CardPanel* panel = _CardPenelMap.value(sortedCards[i]);
+        CardPanel* panel = _CardPenelMap.value(sortedCards[i], nullptr);
         if(!panel) continue;
 
         if(context->_Align == Horizontal) {
             panel->resize(GameScaling::size(m.playerCardSize.width(), m.playerCardSize.height()));
-            const int raiseOffset = GameScaling::y(12);
-            const int handWidth = panel->width() + qMax(0, sortedCards.size() - 1) * handCardSpace;
-            const int leftX = GameScaling::x((480 - (m.playerCardSize.width() + qMax(0, sortedCards.size() - 1) * m.handOverlap)) / 2.0);
-            const int baseTop = GameScaling::y(m.bottomHandY);
-            const double center = (sortedCards.size() - 1) / 2.0;
-
-            _Mycardsrect = QRect(leftX, baseTop - raiseOffset,
-                                 handWidth,
-                                 panel->height() + GameScaling::y(8) + raiseOffset);
-
-            const int arcOffset = GameScaling::y(qMin(8, qRound(qAbs(i - center) * 2.0)));
-            int topY = baseTop + arcOffset;
-            if(panel->GetSelect())
-            {
-                topY -= raiseOffset;
-            }
-            panel->move(leftX + i * handCardSpace, topY);
-            panel->setfront(true);//自己的牌要显示出来
-            QRect temp(leftX + i * handCardSpace, topY, panel->width(), panel->height());
+            const QPoint basePos = handBasePos(i, sortedCards.size(), false);
+            const QRect temp(basePos.x(), basePos.y() - GameScaling::y(12), panel->width(), panel->height() + GameScaling::y(12));
             _PanelPositon.insert(panel, temp);
+            _Mycardsrect = _Mycardsrect.united(temp);
+
+            auto *posAnim = new QPropertyAnimation(panel, "pos");
+            posAnim->setDuration(180);
+            posAnim->setStartValue(panel->pos());
+            posAnim->setEndValue(handBasePos(i, sortedCards.size(), panel->GetSelect()));
+            posAnim->setEasingCurve(QEasingCurve::OutCubic);
+            posAnim->start(QAbstractAnimation::DeleteWhenStopped);
+
+            auto *rotAnim = new QPropertyAnimation(panel, "rotation");
+            rotAnim->setDuration(180);
+            rotAnim->setStartValue(panel->rotation());
+            rotAnim->setEndValue(handRotation(i, sortedCards.size()));
+            rotAnim->setEasingCurve(QEasingCurve::OutCubic);
+            rotAnim->start(QAbstractAnimation::DeleteWhenStopped);
+
+            panel->setfront(true);
+            panel->setZValue(i);
         }
         else {
-            const bool isLeft = (rect.left() == GameScaling::x(m.leftRobotX));
-            const int visibleCount = qMin(4, sortedCards.size());
-            if (i >= visibleCount) {
-                panel->hide();
-                continue;
-            }
+            const bool isLeft = (player == _Gamecontrol->GetLeftroot());
             panel->resize(GameScaling::size(m.lordCardSize.width(), m.lordCardSize.height()));
             panel->setfront(false);
-            const int topY = GameScaling::y((272 - (m.lordCardSize.height() + qMax(0, visibleCount - 1) * m.verticalOverlap)) / 2.0);
-            panel->move(rect.left(), topY + i * opponentCardSpace);
-            if (isLeft) {
-                panel->raise();
-            }
-
+            const int topY = GameScaling::y((272 - (m.lordCardSize.height() + qMax(0, sortedCards.size() - 1) * m.verticalOverlap)) / 2.0);
+            const QPoint pos(rect.left(), topY + i * opponentCardSpace);
+            auto *posAnim = new QPropertyAnimation(panel, "pos");
+            posAnim->setDuration(150);
+            posAnim->setStartValue(panel->pos());
+            posAnim->setEndValue(pos);
+            posAnim->setEasingCurve(QEasingCurve::OutCubic);
+            posAnim->start(QAbstractAnimation::DeleteWhenStopped);
+            panel->setRotation(0);
+            panel->setZValue(isLeft ? i : 100 + i);
         }
 
-        panel->raise();//控件升至顶端
-        panel->show();
+        panel->setVisible(true);
     }
 
     if (context->_CountLabel) {
@@ -834,49 +649,34 @@ void Maingame::PendCardpos(player* player) {
         } else {
             context->_CountLabel->setText(QString::number(sortedCards.size()));
             context->_CountLabel->adjustSize();
-            const int labelY = GameScaling::y((272 - (m.lordCardSize.height() + qMax(0, qMin(4, sortedCards.size()) - 1) * m.verticalOverlap)) / 2.0) + GameScaling::y(m.lordCardSize.height() + qMax(0, qMin(4, sortedCards.size()) - 1) * m.verticalOverlap + 6);
-            const int labelX = rect.left() + (rect.width() - context->_CountLabel->width()) / 2;
-            context->_CountLabel->move(labelX, labelY);
+            context->_CountLabel->move(rect.left(), rect.center().y() + GameScaling::y(36));
             context->_CountLabel->show();
             context->_CountLabel->raise();
         }
     }
 
-    const int playHandspace = GameScaling::x(m.tableOverlap);
-
-    // 打出的牌 - 重要修复：只有当有有效出牌时才显示
-    if(_Playercontexts.find(player).value()->_Last_Cards != nullptr &&
-        !_Playercontexts.find(player).value()->_Last_Cards->isempty())
-    {
-        QRect Location = _Playercontexts.find(player).value()->_PlayerHandRect;//出牌位置
-        QListcard list = _Playercontexts.find(player).value()->_Last_Cards->Listcardssort();
-
-        for(int i = 0; i < list.size(); i++)
-        {
-            CardPanel *tempPanel = _CardPenelMap.value(list.at(i));//找打卡牌信息
-            if(tempPanel)
-            {
-                tempPanel->setfront(true);
-                tempPanel->resize(GameScaling::size(m.tableCardSize.width(), m.tableCardSize.height()));
-                int x = (Location.width() - list.size() * playHandspace - 1 + tempPanel->width()) / 2 + i * playHandspace;
-                int y = (Location.height() - tempPanel->height()) / 2;
-                const QPoint targetPos(Location.left() + x, Location.top() + y);
-                const QPoint startPos = tempPanel->isVisible() ? tempPanel->pos() : QPoint(targetPos.x(), targetPos.y() + GameScaling::y(16));
-                tempPanel->move(startPos);
-                tempPanel->raise();//控件升至顶端
-                tempPanel->show();
-
-                QPropertyAnimation *playAnim = new QPropertyAnimation(tempPanel, "pos", tempPanel);
-                playAnim->setDuration(200);
-                playAnim->setStartValue(startPos);
-                playAnim->setEndValue(targetPos);
-                playAnim->setEasingCurve(QEasingCurve::OutCubic);
-                playAnim->start(QAbstractAnimation::DeleteWhenStopped);
-            }
+    if(context->_Last_Cards != nullptr && !context->_Last_Cards->isempty()) {
+        QRect location = context->_PlayerHandRect;
+        QListcard list = context->_Last_Cards->Listcardssort();
+        const int startX = location.left() + (location.width() - (m.tableCardSize.width() + qMax(0, list.size() - 1) * m.tableOverlap)) / 2;
+        for(int i = 0; i < list.size(); i++) {
+            CardPanel *tempPanel = _CardPenelMap.value(list.at(i), nullptr);
+            if(!tempPanel) continue;
+            tempPanel->resize(GameScaling::size(m.tableCardSize.width(), m.tableCardSize.height()));
+            tempPanel->setfront(true);
+            const QPoint targetPos(startX + i * GameScaling::x(m.tableOverlap), GameScaling::y(m.playAreaY));
+            auto *playAnim = new QPropertyAnimation(tempPanel, "pos");
+            playAnim->setDuration(220);
+            playAnim->setStartValue(tempPanel->pos());
+            playAnim->setEndValue(targetPos);
+            playAnim->setEasingCurve(QEasingCurve::OutBack);
+            playAnim->start(QAbstractAnimation::DeleteWhenStopped);
+            tempPanel->setRotation(0);
+            tempPanel->setZValue(300 + i);
+            tempPanel->setVisible(true);
         }
     }
 }
-
 void Maingame::OndisPosePlayhand(player *player, Cards *cards)
 {
     // qDebug() << "OndisPosePlayhand - 玩家:" << player << "牌数:" << (cards ? cards->GetCardtotal() : 0);
@@ -1099,18 +899,29 @@ void Maingame::Cardpanel(Qt::MouseButton event)
 
     // 5. 修复比较运算符
     if (event == Qt::LeftButton) {
-        temp->setselect(!temp->GetSelect());
-        PendCardpos(temp->getowner());
+        const player *owner = temp->getowner();
+        if (!owner) {
+            return;
+        }
+        const Cards ownerCards = temp->getowner()->GetCards();
+        const QListcard sorted = ownerCards.Listcardssort(Cards::ASC);
+        const int index = sorted.indexOf(*temp->getcard());
+        const bool willSelect = !temp->GetSelect();
+        temp->animateSelection(willSelect, handBasePos(qMax(0, index), sorted.size(), false), GameScaling::y(12), 150);
 
         auto it = _SelcetPanel.find(temp);
         if (it == _SelcetPanel.end()) {
             _SelcetPanel.insert(temp);
-            // 添加选牌音效
             _Bgmcontrol->OtherBgm(Bgmcontrol::OtherSound::SELECT_CARD);
         } else {
             _SelcetPanel.erase(it);
             temp->setselect(false);
         }
+        QTimer::singleShot(160, this, [this, ownerPtr = temp->getowner()]() {
+            if (ownerPtr) {
+                PendCardpos(ownerPtr);
+            }
+        });
     }
 }
 
@@ -1533,26 +1344,311 @@ void Maingame::Showanimation(PlayHand::HandType type)
 //卡牌位置的显示
 void Maingame::InitGameScene()
 {
+    ensureGraphicsView();
     const LayoutMetrics m = metrics();
     if (!_PendCards) {
-        _PendCards=new CardPanel(this);
+        _PendCards = new CardPanel();
+        _CardScene->addItem(_PendCards);
+    }
+    if (!_MoveCards) {
+        _MoveCards = new CardPanel();
+        _CardScene->addItem(_MoveCards);
     }
     _PendCards->resize(GameScaling::size(m.deckCardSize.width(), m.deckCardSize.height()));
-    _PendCards->setimage(_Card_back,_Card_back);
-
-    if (!_MoveCards) {
-        _MoveCards=new CardPanel(this);
-    }
-    _MoveCards->setimage(_Card_back,_Card_back);
+    _PendCards->setimage(_Card_back, _Card_back);
+    _PendCards->setfront(false);
+    _PendCards->setVisible(false);
     _MoveCards->resize(GameScaling::size(m.deckCardSize.width(), m.deckCardSize.height()));
-
-    _Base_point=GameScaling::point(m.deckX, m.deckY);
-    _PendCards->move(_Base_point);
-    _MoveCards->move(_Base_point);
-
-    _PendCards->show();
+    _MoveCards->setimage(_Card_back, _Card_back);
+    _MoveCards->setfront(false);
+    _MoveCards->setVisible(false);
+    _Base_point = GameScaling::point(m.deckX, m.deckY);
+    _PendCards->setPos(_Base_point);
+    _MoveCards->setPos(_Base_point);
     ensureLordCardPanels();
 }
+void Maingame::ensureGraphicsView()
+{
+    if (_CardView && _CardScene) {
+        return;
+    }
+
+    _CardScene = new QGraphicsScene(this);
+    _CardScene->setSceneRect(0, 0, GameScaling::x(480), GameScaling::y(272));
+
+    _CardView = new QGraphicsView(ui->centralwidget);
+    _CardView->setGeometry(GameScaling::rect(0, 0, 480, 272));
+    _CardView->setFrameShape(QFrame::NoFrame);
+    _CardView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    _CardView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    _CardView->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    _CardView->setStyleSheet("background: transparent;");
+    _CardView->setScene(_CardScene);
+    _CardView->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
+    _CardView->setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
+    _CardView->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    _CardView->lower();
+}
+
+void Maingame::prepareCardPixmaps()
+{
+    _CardPixmapMap.clear();
+    _IMage_Cards = GameResourceCache::pixmap(":/images/card.png");
+    if (_IMage_Cards.isNull()) {
+        qWarning() << "card.png 资源加载失败";
+        return;
+    }
+
+    _IMage_Card_Size = GameScaling::size(metrics().playerCardSize.width(), metrics().playerCardSize.height());
+    const int sheetCardWidth = _IMage_Cards.width() / 13;
+    const int sheetCardHeight = _IMage_Cards.height() / 5;
+    _Card_back = _IMage_Cards.copy(sheetCardWidth * 2, sheetCardHeight * 4, sheetCardWidth, sheetCardHeight);
+
+    for (int i = 0; i < 13; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            Card::cardpoint point = static_cast<Card::cardpoint>(i + 1);
+            Card::cardsuit suit = static_cast<Card::cardsuit>(j + 1);
+            Card temp(suit, point);
+            QPixmap face = _IMage_Cards.copy(sheetCardWidth * i, sheetCardHeight * j, sheetCardWidth, sheetCardHeight);
+            _CardPixmapMap.insert(temp, qMakePair(face, _Card_back));
+        }
+    }
+
+    _CardPixmapMap.insert(Card(Card::Suit_Begin, Card::Card_SJ), qMakePair(_IMage_Cards.copy(0, sheetCardHeight * 4, sheetCardWidth, sheetCardHeight), _Card_back));
+    _CardPixmapMap.insert(Card(Card::Suit_Begin, Card::Card_BJ), qMakePair(_IMage_Cards.copy(sheetCardWidth, sheetCardHeight * 4, sheetCardWidth, sheetCardHeight), _Card_back));
+}
+
+void Maingame::createCardItemsInBatches()
+{
+    ensureGraphicsView();
+    if (_CardCreationRunning || !_CardPenelMap.isEmpty()) {
+        finalizeCardItemCreation();
+        return;
+    }
+
+    _CardCreationQueue = _CardPixmapMap.keys().toVector();
+    _CardCreationIndex = 0;
+    _CardCreationRunning = true;
+
+    auto *batchTimer = new QTimer(this);
+    batchTimer->setSingleShot(false);
+    connect(batchTimer, &QTimer::timeout, this, [this, batchTimer]() {
+        const int batchSize = 6;
+        const LayoutMetrics m = metrics();
+        for (int count = 0; count < batchSize && _CardCreationIndex < _CardCreationQueue.size(); ++count, ++_CardCreationIndex) {
+            const Card key = _CardCreationQueue.at(_CardCreationIndex);
+            if (_CardPenelMap.contains(key)) {
+                continue;
+            }
+            CardPanel *item = new CardPanel();
+            _CardScene->addItem(item);
+            item->resize(GameScaling::size(m.playerCardSize.width(), m.playerCardSize.height()));
+            const auto pix = _CardPixmapMap.value(key);
+            item->setimage(pix.first, pix.second);
+            item->setcard(new Card(key));
+            item->setfront(false);
+            item->setVisible(false);
+            item->setPos(_Base_point);
+            connect(item, &CardPanel::S_Cardsselect, this, &Maingame::Cardpanel, Qt::UniqueConnection);
+            _CardPenelMap.insert(key, item);
+        }
+        if (_CardCreationIndex < _CardCreationQueue.size()) {
+            return;
+        }
+        batchTimer->stop();
+        batchTimer->deleteLater();
+        _CardCreationRunning = false;
+        finalizeCardItemCreation();
+    });
+    batchTimer->start(0);
+}
+
+void Maingame::finalizeCardItemCreation()
+{
+    for (auto it = _CardPenelMap.begin(); it != _CardPenelMap.end(); ++it) {
+        it.value()->setVisible(false);
+        it.value()->setPos(_Base_point);
+        it.value()->setRotation(0);
+        it.value()->setZValue(0);
+        it.value()->setfront(false);
+        it.value()->setselect(false);
+    }
+}
+
+int Maingame::handSpacing(int cardCount) const
+{
+    return GameScaling::x(cardCount <= 18 ? 20 : 16);
+}
+
+QPoint Maingame::handBasePos(int index, int cardCount, bool selected) const
+{
+    const int rawSpacing = cardCount <= 18 ? 20 : 16;
+    const int spacing = GameScaling::x(rawSpacing);
+    const int startX = GameScaling::x((480 - (36 + qMax(0, cardCount - 1) * rawSpacing)) / 2.0);
+    const qreal center = (cardCount - 1) / 2.0;
+    const int y = GameScaling::y(215 + qRound(qAbs(index - center) * 2.0) - (selected ? 12 : 0));
+    return QPoint(startX + index * spacing, y);
+}
+
+qreal Maingame::handRotation(int index, int cardCount) const
+{
+    const qreal center = (cardCount - 1) / 2.0;
+    return (index - center) * 2.0;
+}
+
+void Maingame::beginSerializedDealing()
+{
+    if (_CardCreationRunning) {
+        QTimer::singleShot(20, this, &Maingame::beginSerializedDealing);
+        return;
+    }
+    if (!_Gamecontrol || !_Bgmcontrol || !_MyAnmation) {
+        return;
+    }
+
+    ui->widget->SetStartButtonVisible(false);
+    _CanSelectCards = false;
+    ClearSelectedPanels();
+    _PendingDealCount = 51;
+
+    for (auto it = _Playercontexts.begin(); it != _Playercontexts.end(); ++it) {
+        it.value()->_Mycards->clearcards();
+        it.value()->Isfront = false;
+        if (it.value()->_Last_Cards) {
+            it.value()->_Last_Cards->clearcards();
+        }
+        it.value()->_NOCardlabel->hide();
+        if (it.value()->_CountLabel) {
+            it.value()->_CountLabel->hide();
+        }
+    }
+
+    _MyAnmation->hide();
+    _PendCards->setPos(_Base_point);
+    _MoveCards->setPos(_Base_point);
+    _PendCards->setVisible(true);
+    _MoveCards->setVisible(false);
+
+    for (auto it = _CardPenelMap.begin(); it != _CardPenelMap.end(); ++it) {
+        it.value()->setVisible(false);
+        it.value()->setPos(_Base_point);
+        it.value()->setRotation(0);
+        it.value()->setselect(false);
+        it.value()->setfront(false);
+        it.value()->setZValue(0);
+    }
+
+    _Gamecontrol->SetCurrentPlayer(_Gamecontrol->GetUSer());
+    _Bgmcontrol->OtherBgm(Bgmcontrol::OtherSound::DISPATCH);
+    scheduleDealStep();
+}
+
+void Maingame::scheduleDealStep()
+{
+    if (_PendingDealCount <= 0) {
+        _Bgmcontrol->StopOtherBgm();
+        _MoveCards->setVisible(false);
+        _PendCards->setVisible(false);
+
+        QVector<Card*> lordCards;
+        for (int i = 0; i < 3; ++i) {
+            Card* card = _Gamecontrol->TakeOneCard();
+            if (card) lordCards.append(card);
+        }
+        std::sort(lordCards.begin(), lordCards.end(), [](Card *a, Card *b) {
+            return a && b ? *a < *b : a < b;
+        });
+        const LayoutMetrics m = metrics();
+        const int totalWidth = m.lordCardSize.width() + qMax(0, lordCards.size() - 1) * m.lordOverlap;
+        const int baseX = GameScaling::x((480 - totalWidth) / 2.0);
+        for (int i = 0; i < lordCards.size() && i < 3; ++i) {
+            CardPanel *lordPanel = _LordCards[i];
+            auto source = _CardPenelMap.value(*lordCards[i], nullptr);
+            if (!lordPanel || !source) continue;
+            lordPanel->resize(GameScaling::size(m.lordCardSize.width(), m.lordCardSize.height()));
+            lordPanel->setimage(source->Getimagefont(), _Card_back);
+            lordPanel->setfront(false);
+            lordPanel->setPos(baseX + GameScaling::x(i * m.lordOverlap), GameScaling::y(m.topOpponentY));
+            lordPanel->setVisible(true);
+        }
+        for (Card *card : lordCards) {
+            _Gamecontrol->GetAllCards()->add(card);
+        }
+        _GameLaunchPending = false;
+        SetCurrentGameStatue(gamecontrol::GETLORD);
+        return;
+    }
+
+    player *targetPlayer = _Gamecontrol->GetCurrentPlayer();
+    if (!targetPlayer) {
+        targetPlayer = _Gamecontrol->GetUSer();
+        _Gamecontrol->SetCurrentPlayer(targetPlayer);
+    }
+
+    Card *drawnCard = _Gamecontrol->TakeOneCard();
+    if (!drawnCard) {
+        _GameLaunchPending = false;
+        return;
+    }
+
+    Card key(drawnCard->getcardsuit(), drawnCard->getcardpoint());
+    CardPanel *panel = _CardPenelMap.value(key, nullptr);
+    if (!panel) {
+        _GameLaunchPending = false;
+        return;
+    }
+
+    targetPlayer->StoreGetCard(drawnCard);
+    Cards cards = targetPlayer->GetCards();
+    const int count = cards.GetCardtotal();
+    const int index = qMax(0, count - 1);
+    QPoint targetPos;
+    qreal targetRotation = 0;
+    const LayoutMetrics m = metrics();
+    if (targetPlayer == _Gamecontrol->GetUSer()) {
+        targetPos = handBasePos(index, count, false);
+        targetRotation = handRotation(index, count);
+        panel->resize(GameScaling::size(m.playerCardSize.width(), m.playerCardSize.height()));
+    } else if (targetPlayer == _Gamecontrol->GetLeftroot()) {
+        panel->resize(GameScaling::size(m.lordCardSize.width(), m.lordCardSize.height()));
+        targetPos = scaledPoint(m.leftRobotX, 40 + (qMin(count, 10) - 1) * m.verticalOverlap);
+    } else {
+        panel->resize(GameScaling::size(m.lordCardSize.width(), m.lordCardSize.height()));
+        targetPos = scaledPoint(m.rightRobotX, 40 + (qMin(count, 10) - 1) * m.verticalOverlap);
+    }
+
+    panel->setPos(_Base_point);
+    panel->setRotation(0);
+    panel->setVisible(true);
+    panel->setZValue(999);
+    panel->setfront(false);
+
+    auto *moveAnim = new QPropertyAnimation(panel, "pos");
+    moveAnim->setDuration(260);
+    moveAnim->setStartValue(_Base_point);
+    moveAnim->setEndValue(targetPos);
+    moveAnim->setEasingCurve(QEasingCurve::OutQuint);
+    moveAnim->start(QAbstractAnimation::DeleteWhenStopped);
+
+    auto *rotAnim = new QPropertyAnimation(panel, "rotation");
+    rotAnim->setDuration(260);
+    rotAnim->setStartValue(0);
+    rotAnim->setEndValue(targetRotation);
+    rotAnim->setEasingCurve(QEasingCurve::OutQuint);
+    rotAnim->start(QAbstractAnimation::DeleteWhenStopped);
+
+    panel->animateFlip(targetPlayer == _Gamecontrol->GetUSer());
+
+    QTimer::singleShot(220, this, [this, targetPlayer]() {
+        PendCardpos(targetPlayer);
+    });
+
+    _PendingDealCount -= 1;
+    _Gamecontrol->SetCurrentPlayer(targetPlayer->GetNextPlayer());
+    QTimer::singleShot(60, this, &Maingame::scheduleDealStep);
+}
+
+
 Maingame::~Maingame()
 {
     if(_Bgmcontrol) {
