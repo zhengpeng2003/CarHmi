@@ -5,7 +5,7 @@
 CardPanel::CardPanel(QWidget *parent)
     : QWidget{parent},is_front(0),_Card(nullptr),_Player(nullptr),is_select(false)
 {
-    this->setFixedSize(65,100);
+    this->setFixedSize(50,70);
 }
 
 void CardPanel::setimage(const QPixmap &map_fornt, const QPixmap &map_back)
