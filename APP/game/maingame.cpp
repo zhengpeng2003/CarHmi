@@ -15,40 +15,34 @@
 #include <QPushButton>
 #include <QRandomGenerator>
 #include <QPainter>
+#include "gameresourcecache.h"
+#include "gamescaling.h"
 
 Maingame::Maingame(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::Maingame)
 {
-    /* ===============================
-     * 1️⃣ 窗口基础属性（一定要最前）
-     * =============================== */
-    this->setFixedSize(480, 272);
-    this->setWindowIcon(QIcon(":/images/logo.ico"));
-    this->setWindowTitle("欢乐斗地主");
-
-    /* ===============================
-     * 2️⃣ UI 初始化（必须）
-     * =============================== */
+    initializeWindowChrome();
     ui->setupUi(this);
+    initializeExitButton();
+}
 
-    /* ===============================
-     * 3️⃣ 右上角退出按钮（关键）
-     * =============================== */
-    QWidget *cw = this->centralWidget();   // ⭐ QMainWindow 必须用 centralWidget
+void Maingame::initializeWindowChrome()
+{
+    GameScaling::initialize(size().isValid() ? size() : GameScaling::designSize());
+    setFixedSize(GameScaling::designSize());
+    setWindowIcon(QIcon(":/images/logo.ico"));
+    setWindowTitle("欢乐斗地主");
+}
 
-    QPushButton *exitBtn = new QPushButton(cw);
-    exitBtn->setText("×");
-    exitBtn->setFixedSize(32, 32);
-
-    // 右上角（基于 centralWidget）
-    exitBtn->move(
-        440,
-        0
-        );
-
-    // 样式
-    exitBtn->setStyleSheet(
+void Maingame::initializeExitButton()
+{
+    QWidget *cw = centralWidget();
+    _ExitButton = new QPushButton(cw);
+    _ExitButton->setText("×");
+    GameScaling::applyFixedSize(_ExitButton, 32, 32);
+    GameScaling::move(_ExitButton, 440, 0);
+    _ExitButton->setStyleSheet(
         "QPushButton {"
         "background-color: rgba(0,0,0,120);"
         "color: white;"
@@ -60,48 +54,93 @@ Maingame::Maingame(QWidget *parent)
         "background-color: rgba(255,0,0,160);"
         "}"
         );
+    connect(_ExitButton, &QPushButton::clicked, this, &QWidget::close);
+}
 
-    // ⭐ 连接：点击 = 关闭窗口（走 closeEvent）
-    connect(exitBtn, &QPushButton::clicked, this, &QWidget::close);
+int Maingame::setupStageCount() const
+{
+    return 9;
+}
 
-    /* ===============================
-     * 4️⃣ 背景图片初始化
-     * =============================== */
-    int rand = QRandomGenerator::global()->bounded(0, 10) + 1;
-    QString imgPath = QString(":/images/background-%1.png").arg(rand);
-    _IMage_Map = QPixmap(imgPath);
+QString Maingame::setupStageLabel(int stage) const
+{
+    switch (stage) {
+    case SetupResources: return QStringLiteral("加载背景与基础资源");
+    case SetupGameControl: return QStringLiteral("初始化逻辑控制器");
+    case SetupScoreboard: return QStringLiteral("初始化积分面板");
+    case SetupCardPanels: return QStringLiteral("构建卡牌面板");
+    case SetupScene: return QStringLiteral("初始化场景元素");
+    case SetupButtons: return QStringLiteral("初始化游戏按钮");
+    case SetupMovePoints: return QStringLiteral("计算布局锚点");
+    case SetupTimers: return QStringLiteral("初始化计时器");
+    case SetupAudio: return QStringLiteral("初始化音效系统");
+    default: return QStringLiteral("初始化中");
+    }
+}
 
-    /* ===============================
-     * 5️⃣ 动画、控制器、场景初始化
-     * =============================== */
-    _MyAnmation = new AnmationPixmap(this);
+void Maingame::initializeStage(int stage)
+{
+    if (_CompletedStages.contains(stage)) {
+        return;
+    }
 
-    InitGamecontrol();
-    InitScore();
-    InitCardpanelMap();
-    InitGameScene();
-    InitGroupbtn();
-    InitMovepoint();
+    switch (stage) {
+    case SetupResources: {
+        const int rand = QRandomGenerator::global()->bounded(0, 10) + 1;
+        const QString imgPath = QString(":/images/background-%1.png").arg(rand);
+        _IMage_Map = GameResourceCache::pixmap(imgPath);
+        _MyAnmation = new AnmationPixmap(this);
+        break;
+    }
+    case SetupGameControl:
+        InitGamecontrol();
+        break;
+    case SetupScoreboard:
+        InitScore();
+        break;
+    case SetupCardPanels:
+        InitCardpanelMap();
+        break;
+    case SetupScene:
+        InitGameScene();
+        break;
+    case SetupButtons:
+        InitGroupbtn();
+        break;
+    case SetupMovePoints:
+        InitMovepoint();
+        break;
+    case SetupTimers:
+        if (!_Timer_PlayHand) {
+            _Timer_PlayHand = new QTimer(this);
+            _Movetime = 0;
+            connect(_Timer_PlayHand, &QTimer::timeout, this, [=]() {
+                if (!_Gamecontrol) {
+                    return;
+                }
+                _Movetime++;
+                PlayHandtimer(_Gamecontrol->GetCurrentPlayer(), _Movetime);
+            });
+        }
+        InitPlayerTimer();
+        break;
+    case SetupAudio:
+        if (!_Bgmcontrol) {
+            _Bgmcontrol = new Bgmcontrol(this);
+            _Bgmcontrol->InitMusicPlayer();
+            _Bgmcontrol->StartBgm();
+        }
+        break;
+    default:
+        break;
+    }
 
-    /* ===============================
-     * 6️⃣ 出牌计时器
-     * =============================== */
-    _Timer_PlayHand = new QTimer(this);
-    _Movetime = 0;
-
-    connect(_Timer_PlayHand, &QTimer::timeout, this, [=]() {
-        _Movetime++;
-        PlayHandtimer(_Gamecontrol->GetCurrentPlayer(), _Movetime);
-    });
-
-    InitPlayerTimer();
-
-    /* ===============================
-     * 7️⃣ 背景音乐
-     * =============================== */
-    _Bgmcontrol = new Bgmcontrol(this);
-    _Bgmcontrol->InitMusicPlayer();
-    _Bgmcontrol->StartBgm();
+    _CompletedStages.insert(stage);
+    emit setupProgressChanged(_CompletedStages.size(), setupStageCount(), setupStageLabel(stage));
+    if (_CompletedStages.size() == setupStageCount()) {
+        _SetupCompleted = true;
+        emit setupFinished();
+    }
 }
 
 
@@ -302,17 +341,17 @@ void Maingame::InitGroupbtn()
     const QRect cardsRect[] =
         {
             // x, y, width, height
-            QRect(90, 130, 100, height() - 200),                    // 左侧机器人
-            QRect(rect().right() - 190, 130, 100, height() - 200),  // 右侧机器人
-            QRect(250, rect().bottom() - 120, width() - 500, 100)   // 当前玩家
+            GameScaling::rect(90, 130, 100, 72),                    // 左侧机器人
+            QRect(width() - GameScaling::x(190), GameScaling::y(130), GameScaling::x(100), height() - GameScaling::y(200)),  // 右侧机器人
+            QRect(GameScaling::x(250), height() - GameScaling::y(120), width() - GameScaling::x(500), GameScaling::y(100))   // 当前玩家
         };
 
     // 2. 玩家出牌的区域
     const QRect playHandRect[] =
         {
-            QRect(260, 210, 100, 100),                             // 左侧机器人
-            QRect(rect().right() - 360, 210, 100, 100),            // 右侧机器人
-            QRect(150, rect().bottom() - 290, width() - 300, 100)  // 当前玩家
+            GameScaling::rect(260, 210, 100, 100),                             // 左侧机器人
+            QRect(width() - GameScaling::x(360), GameScaling::y(210), GameScaling::x(100), GameScaling::y(100)),            // 右侧机器人
+            QRect(GameScaling::x(150), height() - GameScaling::y(290), width() - GameScaling::x(300), GameScaling::y(100))  // 当前玩家
         };
 
     // 3. 玩家头像显示的位置
@@ -343,7 +382,7 @@ void Maingame::InitGroupbtn()
         tempcontext->_InfoPos = info[i];
 
         tempcontext->_NOCardlabel = new QLabel(this);
-        tempcontext->_NOCardlabel->resize(160, 98);
+        tempcontext->_NOCardlabel->resize(GameScaling::size(160, 98));
         tempcontext->_NOCardlabel->move(playHandRect[i].x(),playHandRect[i].y());
         tempcontext->_NOCardlabel->setScaledContents(true);
         tempcontext->_NOCardlabel->hide();
@@ -351,7 +390,7 @@ void Maingame::InitGroupbtn()
         tempcontext->_ROlelabel = new QLabel(this);
         tempcontext->_ROlelabel->move(roleImgPos[i].x(),roleImgPos[i].y());
         tempcontext->_ROlelabel->hide();
-        tempcontext->_ROlelabel->resize(84, 120);
+        tempcontext->_ROlelabel->resize(GameScaling::size(84, 120));
 
         tempcontext->_Mycards=new Cards();
         _Playercontexts.insert(_Players.at(i), tempcontext);  // 存储指针
@@ -389,7 +428,7 @@ void Maingame::SatrtPend()
     ClearSelectedPanels();
 
     // 每局开始时重置抢分/动画控件到固定位置，避免上一局动画改变坐标
-    _MyAnmation->setFixedSize(160, 98);
+    _MyAnmation->setFixedSize(GameScaling::size(160, 98));
     _MyAnmation->move((width()-_MyAnmation->width())/2, (height()-_MyAnmation->height())/2-140);
     _MyAnmation->hide();
 
@@ -489,7 +528,7 @@ void Maingame::PlayHandtimer(player * Player,int Movetime)
                 lordPanel->setimage(_CardPenelMap[*card]->Getimagefont(), _Card_back);
             }
 
-            lordPanel->move((width()-_IMage_Card_Size.width()*5)/2 + i*2*_IMage_Card_Size.width(), 20);
+            lordPanel->move((width()-_IMage_Card_Size.width()*5)/2 + i*2*_IMage_Card_Size.width(), GameScaling::y(20));
             lordPanel->resize(_IMage_Card_Size.width(), _IMage_Card_Size.height());
             lordPanel->hide();
             lordPanel->setfront(false);
@@ -600,7 +639,6 @@ void Maingame::SetCurrentGameStatue(gamecontrol::GameState state)
         ui->widget->Setbtngroupstate(MybuttonGroup::Getloard);
         break;
     }
-}
 }
 
 void Maingame::PendCardplayer(player *player)
@@ -1299,7 +1337,7 @@ void Maingame::InitPlayerTimer()
 {
 
     _Timecount=new Timecount(this);
-    _Timecount->move((width()-_Timecount->width())/2,(height()-_Timecount->height())/2+100);
+    _Timecount->move((width()-_Timecount->width())/2,(height()-_Timecount->height())/2 + GameScaling::y(100));
     //时间到了
     connect(_Timecount,&Timecount::S_TimeOUt,this,[=](){
         if(_Gamecontrol->GetCurrentPlayer() != _Gamecontrol->GetUSer())
@@ -1361,14 +1399,14 @@ void Maingame::Showanimation(PlayHand::HandType type)
     case(PlayHand::Hand_Seq_Pair):
     case(PlayHand::Hand_Seq_Sim):
         _MyAnmation->ShowSimsqe(type);
-        _MyAnmation->setFixedSize(250,150);
+        _MyAnmation->setFixedSize(GameScaling::size(250,150));
         _MyAnmation->move((width()-_MyAnmation->width())/2,200);
         _MyAnmation->show();
         break;
     case(PlayHand::Hand_Bomb):
     case(PlayHand::Hand_Bomb_Jokers):
         _MyAnmation->ShowBom(type);
-        _MyAnmation->setFixedSize(250,200);
+        _MyAnmation->setFixedSize(GameScaling::size(250,200));
         _MyAnmation->move((width()-_MyAnmation->width())/2,(height()-_MyAnmation->height())/2-70);
         _MyAnmation->show();
 
@@ -1379,7 +1417,7 @@ void Maingame::Showanimation(PlayHand::HandType type)
     case(PlayHand::Hand_Plane_Two_Single):
     case(PlayHand::Hand_Plane_Two_Pair):
         _MyAnmation->ShowPlane();
-        _MyAnmation->setFixedSize(800,75);
+        _MyAnmation->setFixedSize(GameScaling::size(800,75));
         _MyAnmation->move((width()-(_MyAnmation->width())/2)/2,200);
         _MyAnmation->show();
 
@@ -1405,9 +1443,9 @@ void Maingame::InitGameScene()
     _MoveCards->setimage(_Card_back,_Card_back);
     _MoveCards->resize(_IMage_Card_Size.width(),_IMage_Card_Size.height());
 
-    _PendCards->move(width()/2-_IMage_Card_Size.width()/2,height()/2-100);
-    _MoveCards->move(width()/2-_IMage_Card_Size.width()/2,height()/2-100);
-    _Base_point=QPoint(width()/2-_IMage_Card_Size.width()/2,height()/2-100);
+    _PendCards->move(width()/2-_IMage_Card_Size.width()/2,height()/2-GameScaling::y(100));
+    _MoveCards->move(width()/2-_IMage_Card_Size.width()/2,height()/2-GameScaling::y(100));
+    _Base_point=QPoint(width()/2-_IMage_Card_Size.width()/2,height()/2-GameScaling::y(100));
 
     _PendCards->show();
 
