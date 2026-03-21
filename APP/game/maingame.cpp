@@ -20,26 +20,26 @@
 
 namespace {
 struct LayoutMetrics {
-    QSize playerCardSize = QSize(40, 50);
-    QSize tableCardSize = QSize(40, 50);
-    QSize lordCardSize = QSize(36, 45);
-    QSize deckCardSize = QSize(36, 45);
-    int handOverlap = 24;
-    int verticalOverlap = 14;
-    int tableOverlap = 20;
+    QSize playerCardSize = QSize(36, 48);
+    QSize tableCardSize = QSize(36, 48);
+    QSize lordCardSize = QSize(32, 42);
+    QSize deckCardSize = QSize(32, 42);
+    int handOverlap = 20;
+    int verticalOverlap = 12;
+    int tableOverlap = 24;
     int lordOverlap = 20;
-    QSize buttonSize = QSize(70, 36);
-    int buttonGap = 12;
-    int bottomHandY = 222;
-    int topOpponentY = 15;
-    int deckX = 222;
-    int deckY = 111;
-    int playAreaY = 111;
-    int leftRobotX = 10;
-    int rightRobotX = 430;
-    int avatarMain = 64;
-    int avatarOpp = 48;
-    int roleMaxHeight = 72;
+    QSize buttonSize = QSize(80, 40);
+    int buttonGap = 10;
+    int bottomHandY = 210;
+    int topOpponentY = 10;
+    int deckX = 224;
+    int deckY = 115;
+    int playAreaY = 120;
+    int leftRobotX = 8;
+    int rightRobotX = 440;
+    int avatarMain = 56;
+    int avatarOpp = 42;
+    int roleMaxHeight = 60;
 };
 
 LayoutMetrics metrics()
@@ -72,7 +72,7 @@ void Maingame::initializeExitButton()
     _ExitButton = new QPushButton(cw);
     _ExitButton->setText("×");
     GameScaling::applyFixedSize(_ExitButton, 32, 32);
-    GameScaling::move(_ExitButton, 440, 0);
+    GameScaling::move(_ExitButton, 448, 0);
     _ExitButton->setStyleSheet(
         "QPushButton {"
         "background-color: rgba(0,0,0,120);"
@@ -92,10 +92,10 @@ void Maingame::applyDesignLayout()
 {
     const LayoutMetrics m = metrics();
     if (ui->widget) {
-        ui->widget->setGeometry(GameScaling::rect(270, 227, m.buttonSize.width() * 4 + m.buttonGap * 3, m.buttonSize.height()));
+        ui->widget->setGeometry(GameScaling::rect(120, 220, m.buttonSize.width() * 4 + m.buttonGap * 3, m.buttonSize.height()));
     }
     if (ui->widget_showscore) {
-        ui->widget_showscore->setGeometry(GameScaling::rect(160, 0, 160, 28));
+        ui->widget_showscore->setGeometry(GameScaling::rect(150, 0, 180, 28));
     }
 }
 
@@ -385,19 +385,19 @@ void Maingame::InitGroupbtn()
     ui->widget->Initbutton();
     ui->widget->Setbtngroupstate(MybuttonGroup::Start);
     const QRect cardsRect[] = {
-        GameScaling::rect(m.leftRobotX, 0, m.playerCardSize.width(), 272),
-        GameScaling::rect(m.rightRobotX, 0, m.playerCardSize.width(), 272),
+        GameScaling::rect(m.leftRobotX, 0, m.lordCardSize.width(), 272),
+        GameScaling::rect(m.rightRobotX, 0, m.lordCardSize.width(), 272),
         GameScaling::rect(0, m.bottomHandY, 480, m.playerCardSize.height())
     };
     const QRect playHandRect[] = {
-        GameScaling::rect(70, m.playAreaY, 120, m.tableCardSize.height()),
-        GameScaling::rect(290, m.playAreaY, 120, m.tableCardSize.height()),
-        GameScaling::rect(120, m.playAreaY, 240, m.tableCardSize.height())
+        GameScaling::rect(30, m.playAreaY, 120, m.tableCardSize.height()),
+        GameScaling::rect(330, m.playAreaY, 120, m.tableCardSize.height()),
+        GameScaling::rect(96, m.playAreaY, 288, m.tableCardSize.height())
     };
     const QPoint roleImgPos[] = {
-        GameScaling::point(46, 200),
-        GameScaling::point(454, 200),
-        GameScaling::point(240, 196)
+        GameScaling::point(52, 218),
+        GameScaling::point(428, 218),
+        GameScaling::point(120, 188)
     };
     // 4.信息提示位置
     const QPoint info[] =
@@ -790,12 +790,14 @@ void Maingame::PendCardpos(player* player) {
             const int handWidth = panel->width() + qMax(0, sortedCards.size() - 1) * handCardSpace;
             const int leftX = GameScaling::x((480 - (m.playerCardSize.width() + qMax(0, sortedCards.size() - 1) * m.handOverlap)) / 2.0);
             const int baseTop = GameScaling::y(m.bottomHandY);
+            const double center = (sortedCards.size() - 1) / 2.0;
 
             _Mycardsrect = QRect(leftX, baseTop - raiseOffset,
                                  handWidth,
-                                 panel->height() + raiseOffset);
+                                 panel->height() + GameScaling::y(8) + raiseOffset);
 
-            int topY = baseTop;
+            const int arcOffset = GameScaling::y(qMin(8, qRound(qAbs(i - center) * 2.0)));
+            int topY = baseTop + arcOffset;
             if(panel->GetSelect())
             {
                 topY -= raiseOffset;
@@ -812,9 +814,9 @@ void Maingame::PendCardpos(player* player) {
                 panel->hide();
                 continue;
             }
-            panel->resize(GameScaling::size(m.playerCardSize.width(), m.playerCardSize.height()));
+            panel->resize(GameScaling::size(m.lordCardSize.width(), m.lordCardSize.height()));
             panel->setfront(false);
-            const int topY = GameScaling::y((272 - (m.playerCardSize.height() + qMax(0, visibleCount - 1) * m.verticalOverlap)) / 2.0);
+            const int topY = GameScaling::y((272 - (m.lordCardSize.height() + qMax(0, visibleCount - 1) * m.verticalOverlap)) / 2.0);
             panel->move(rect.left(), topY + i * opponentCardSpace);
             if (isLeft) {
                 panel->raise();
@@ -832,7 +834,7 @@ void Maingame::PendCardpos(player* player) {
         } else {
             context->_CountLabel->setText(QString::number(sortedCards.size()));
             context->_CountLabel->adjustSize();
-            const int labelY = GameScaling::y((272 - (m.playerCardSize.height() + qMax(0, qMin(4, sortedCards.size()) - 1) * m.verticalOverlap)) / 2.0) + GameScaling::y(m.playerCardSize.height() + qMax(0, qMin(4, sortedCards.size()) - 1) * m.verticalOverlap + 6);
+            const int labelY = GameScaling::y((272 - (m.lordCardSize.height() + qMax(0, qMin(4, sortedCards.size()) - 1) * m.verticalOverlap)) / 2.0) + GameScaling::y(m.lordCardSize.height() + qMax(0, qMin(4, sortedCards.size()) - 1) * m.verticalOverlap + 6);
             const int labelX = rect.left() + (rect.width() - context->_CountLabel->width()) / 2;
             context->_CountLabel->move(labelX, labelY);
             context->_CountLabel->show();
@@ -856,21 +858,20 @@ void Maingame::PendCardpos(player* player) {
             {
                 tempPanel->setfront(true);
                 tempPanel->resize(GameScaling::size(m.tableCardSize.width(), m.tableCardSize.height()));
-                if(_Playercontexts.find(player).value()->_Align == Horizontal)//水平
-                {
-                    int x = (Location.width() - list.size() * playHandspace - 1 + tempPanel->width()) / 2 + i * playHandspace;
-                    int y = (Location.height() - tempPanel->height()) / 2;
-                    tempPanel->move(Location.left() + x, Location.top() + y);
-                }
-                else//竖直
-                {
-                    int x = (Location.width() - list.size() * playHandspace - 1 + tempPanel->width()) / 2 + i * playHandspace;
-                    int y = (Location.height() - tempPanel->height()) / 2;
-                    tempPanel->move(Location.left() + x, Location.top() + y);
-
-                }
+                int x = (Location.width() - list.size() * playHandspace - 1 + tempPanel->width()) / 2 + i * playHandspace;
+                int y = (Location.height() - tempPanel->height()) / 2;
+                const QPoint targetPos(Location.left() + x, Location.top() + y);
+                const QPoint startPos = tempPanel->isVisible() ? tempPanel->pos() : QPoint(targetPos.x(), targetPos.y() + GameScaling::y(16));
+                tempPanel->move(startPos);
                 tempPanel->raise();//控件升至顶端
                 tempPanel->show();
+
+                QPropertyAnimation *playAnim = new QPropertyAnimation(tempPanel, "pos", tempPanel);
+                playAnim->setDuration(200);
+                playAnim->setStartValue(startPos);
+                playAnim->setEndValue(targetPos);
+                playAnim->setEasingCurve(QEasingCurve::OutCubic);
+                playAnim->start(QAbstractAnimation::DeleteWhenStopped);
             }
         }
     }

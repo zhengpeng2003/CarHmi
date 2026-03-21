@@ -7,17 +7,17 @@ MybuttonGroup::MybuttonGroup(QWidget *parent)
     , ui(new Ui::MybuttonGroup)
 {
     ui->setupUi(this);
-    setFixedSize(GameScaling::size(316, 36));
+    setFixedSize(GameScaling::size(350, 40));
 }
 
 void MybuttonGroup::Initbutton()
 {
-    const QSize btnSize = GameScaling::size(70, 36);
+    const QSize btnSize = GameScaling::size(80, 40);
     const QString style =
         "QPushButton {"
         "background-color: rgba(245,245,245,230);"
         "border: 1px solid rgba(0,0,0,80);"
-        "border-radius: 4px;"
+        "border-radius: 6px;"
         "padding: 0px;"
         "font: 13px 'Microsoft YaHei';"
         "}"
@@ -53,21 +53,21 @@ void MybuttonGroup::Initbutton()
         button->setStyleSheet(style);
     }
     ui->pushButton_start->setParent(ui->page_Start);
-    ui->pushButton_start->setGeometry(GameScaling::rect(160, 0, 70, 36));
+    ui->pushButton_start->setGeometry(GameScaling::rect(270, 0, 80, 40));
     ui->pushButton_playfirst->setParent(ui->page_PlayCardfirst);
-    ui->pushButton_playfirst->setGeometry(GameScaling::rect(160, 0, 70, 36));
+    ui->pushButton_playfirst->setGeometry(GameScaling::rect(270, 0, 80, 40));
     ui->pushButton_play->setParent(ui->page_PlayCard);
-    ui->pushButton_play->setGeometry(GameScaling::rect(160, 0, 70, 36));
+    ui->pushButton_play->setGeometry(GameScaling::rect(270, 0, 80, 40));
     ui->pushButton_no->setParent(ui->page_PlayCard);
-    ui->pushButton_no->setGeometry(GameScaling::rect(80, 0, 70, 36));
+    ui->pushButton_no->setGeometry(GameScaling::rect(180, 0, 80, 40));
     ui->pushButton_NO->setParent(ui->page_Getloard);
-    ui->pushButton_NO->setGeometry(GameScaling::rect(0, 0, 70, 36));
+    ui->pushButton_NO->setGeometry(GameScaling::rect(0, 0, 80, 40));
     ui->pushButton_one->setParent(ui->page_Getloard);
-    ui->pushButton_one->setGeometry(GameScaling::rect(80, 0, 70, 36));
+    ui->pushButton_one->setGeometry(GameScaling::rect(90, 0, 80, 40));
     ui->pushButton_two->setParent(ui->page_Getloard);
-    ui->pushButton_two->setGeometry(GameScaling::rect(160, 0, 70, 36));
+    ui->pushButton_two->setGeometry(GameScaling::rect(180, 0, 80, 40));
     ui->pushButton_three->setParent(ui->page_Getloard);
-    ui->pushButton_three->setGeometry(GameScaling::rect(240, 0, 70, 36));
+    ui->pushButton_three->setGeometry(GameScaling::rect(270, 0, 80, 40));
     //出牌
     connect(ui->pushButton_no,&QPushButton::clicked,this,&MybuttonGroup::S_NoHand);
     connect(ui->pushButton_play,&QPushButton::clicked,this,&MybuttonGroup::S_PlayHand);
