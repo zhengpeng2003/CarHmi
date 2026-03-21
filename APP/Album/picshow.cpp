@@ -1,7 +1,10 @@
-﻿#include "picshow.h"
+#include "picshow.h"
 #include "ui_picshow.h"
 #include "QGraphicsOpacityEffect"
 #include "QPropertyAnimation"
+#include <QtConcurrent>
+#include <QImageReader>
+
 picshow::picshow(QWidget *parent)
     : QDialog(parent)
     , ui(new Ui::picshow)
@@ -10,31 +13,80 @@ picshow::picshow(QWidget *parent)
     ui->previous_btn->creatpicbutton(":/icon/previous.png",":/icon/previous_hover.png",":/icon/previous_press.png");
     ui->next_btn->creatpicbutton(":/icon/next.png",":/icon/next_hover.png",":/icon/next_press.png");
 
-    QGraphicsOpacityEffect  * pre_btn_opacity=new QGraphicsOpacityEffect(this);
+    auto *pre_btn_opacity = new QGraphicsOpacityEffect(this);
     pre_btn_opacity->setOpacity(0);
     ui->previous_btn->setGraphicsEffect(pre_btn_opacity);
 
-    QGraphicsOpacityEffect * next_btn_opacity=new QGraphicsOpacityEffect(this);
+    auto *next_btn_opacity = new QGraphicsOpacityEffect(this);
     next_btn_opacity->setOpacity(0);
     ui->next_btn->setGraphicsEffect(next_btn_opacity);
 
-    pre_btn_animation=new QPropertyAnimation(pre_btn_opacity,"opacity",this);
+    pre_btn_animation = new QPropertyAnimation(pre_btn_opacity,"opacity",this);
     pre_btn_animation->setEasingCurve(QEasingCurve::InExpo);
     pre_btn_animation->setDuration(500);
 
-    next_btn_animation=new QPropertyAnimation(next_btn_opacity,"opacity",this);
+    next_btn_animation = new QPropertyAnimation(next_btn_opacity,"opacity",this);
     next_btn_animation->setEasingCurve(QEasingCurve::InExpo);
     next_btn_animation->setDuration(500);
 
-    //前进后退按钮的连接
     connect(ui->previous_btn,&QPushButton::clicked,this,&picshow::sigprebtn);
     connect(ui->next_btn,&QPushButton::clicked,this,&picshow::signextbtn);
-
+    connect(&_imageWatcher, &QFutureWatcher<QImage>::finished, this, [this]() {
+        if (_pendingPath != _select_pic) {
+            return;
+        }
+        const QImage image = _imageWatcher.result();
+        if (image.isNull()) {
+            ui->pic_show_label->clear();
+            return;
+        }
+        _pic = QPixmap::fromImage(image);
+        ui->pic_show_label->setScaledContents(true);
+        ui->pic_show_label->setPixmap(scaledPixmapForCurrentView(_pic));
+    });
 }
 
 picshow::~picshow()
 {
+    _imageWatcher.cancel();
+    _imageWatcher.waitForFinished();
     delete ui;
+}
+
+QPixmap picshow::scaledPixmapForCurrentView(const QPixmap &pixmap) const
+{
+    const QSize targetSize = ui->pic_show_label->size().boundedTo(QSize(1920, 1080));
+    if (targetSize.isEmpty()) {
+        return pixmap;
+    }
+    return pixmap.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+}
+
+void picshow::requestPixmap(const QString &path)
+{
+    _select_pic = path;
+    _pendingPath = path;
+    if (_select_pic.isEmpty()) {
+        ui->pic_show_label->clear();
+        return;
+    }
+
+    if (_imageWatcher.isRunning()) {
+        _imageWatcher.cancel();
+        _imageWatcher.waitForFinished();
+    }
+
+    _imageWatcher.setFuture(QtConcurrent::run([path]() {
+        QImageReader reader(path);
+        reader.setAutoTransform(true);
+        const QSize maxSize(1920, 1080);
+        if (reader.size().isValid()) {
+            QSize scaled = reader.size();
+            scaled.scale(maxSize, Qt::KeepAspectRatio);
+            reader.setScaledSize(scaled);
+        }
+        return reader.read();
+    }));
 }
 
 void picshow::showprenextbtn(bool b_show)
@@ -42,27 +94,24 @@ void picshow::showprenextbtn(bool b_show)
     if(b_show)
     {
         pre_btn_animation->stop();
-        pre_btn_animation->setStartValue(0);//透明
+        pre_btn_animation->setStartValue(0);
         pre_btn_animation->setEndValue(1);
         pre_btn_animation->start();
 
-
         next_btn_animation->stop();
-        next_btn_animation->setStartValue(0);//透明
+        next_btn_animation->setStartValue(0);
         next_btn_animation->setEndValue(1);
         next_btn_animation->start();
     }
     else
     {
-
         pre_btn_animation->stop();
-        pre_btn_animation->setStartValue(1);//透明
+        pre_btn_animation->setStartValue(1);
         pre_btn_animation->setEndValue(0);
         pre_btn_animation->start();
 
-
         next_btn_animation->stop();
-        next_btn_animation->setStartValue(1);//透明
+        next_btn_animation->setStartValue(1);
         next_btn_animation->setEndValue(0);
         next_btn_animation->start();
     }
@@ -70,13 +119,11 @@ void picshow::showprenextbtn(bool b_show)
 
 void picshow::repic()
 {
-    if(_select_pic=="")
+    if(_select_pic.isEmpty())
         return;
-    _pic.load(_select_pic);
-    auto const height=ui->gridLayout->geometry().height();
-    auto const  width=ui->gridLayout->geometry().width();
-    _pic=_pic.scaled(height,width,Qt::KeepAspectRatio);
-    ui->pic_show_label->setPixmap(_pic);
+    if (!_pic.isNull()) {
+        ui->pic_show_label->setPixmap(scaledPixmapForCurrentView(_pic));
+    }
 }
 
 bool picshow::event(QEvent *event)
@@ -95,45 +142,27 @@ bool picshow::event(QEvent *event)
 
 void picshow::slotpicshow(QString path)
 {
-    _select_pic=path;
-    if(_select_pic=="")
-        return;
-    _pic.load(_select_pic);
-    int height=this->height()+200;
-    int width=this->width()+20;
-
-    // 确保 QLabel 会自动缩放其内容以填充整个标签区域
-    ui->pic_show_label->setScaledContents(true);
-    _pic=_pic.scaled(height,width,Qt::KeepAspectRatio);//缩放
-    ui->pic_show_label->setPixmap(_pic);
+    requestPixmap(path);
 }
 
 void picshow::slotprepicshow(const QString path)
 {
-    _select_pic=path;
-    if(_select_pic=="")
-        return;
-    _pic.load(path);
-    auto const height=ui->gridLayout->geometry().height();
-    auto const  width=ui->gridLayout->geometry().width();
-    _pic=_pic.scaled(height,width,Qt::KeepAspectRatio);
-    ui->pic_show_label->setPixmap(_pic);
+    requestPixmap(path);
 }
 
 void picshow::slotnextpicshow(const QString path)
 {
-    _select_pic=path;
-    if(_select_pic=="")
-        return;
-    _pic.load(path);
-    auto const height=ui->gridLayout->geometry().height();
-    auto const  width=ui->gridLayout->geometry().width();
-    _pic=_pic.scaled(height,width,Qt::KeepAspectRatio);
-    ui->pic_show_label->setPixmap(_pic);
+    requestPixmap(path);
 }
 
 void picshow::slotclosepic()
 {
-    _select_pic=="";
+    _select_pic = "";
+    _pendingPath.clear();
+    _pic = QPixmap();
+    if (_imageWatcher.isRunning()) {
+        _imageWatcher.cancel();
+        _imageWatcher.waitForFinished();
+    }
     ui->pic_show_label->clear();
 }

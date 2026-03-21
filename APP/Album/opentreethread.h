@@ -1,20 +1,18 @@
 #ifndef OPENTREETHREAD_H
 #define OPENTREETHREAD_H
 
-
-#include "protreeitem.h"
 #include <QThread>
-#include<protreewidget.h>
+
+class protreewidget;
 class opentreethread : public QThread
 {
     Q_OBJECT
-public://哪个widget self 其实就是root
-    opentreethread(const QString scr_path,const QString name,int file_cout,protreewidget *self,QObject *parent = nullptr);
-    void openprotree(const QString scr_path,const QString name,int file_cout,protreewidget *self);
-    void re_opentree(const QString scr_path,const QString name,int file_cout,protreewidget *self
-                     ,protreeitem * root,protreeitem *parent,protreeitem * previous);
+public:
+    opentreethread(const QString scr_path, const QString name, int file_cout, protreewidget *self, QObject *parent = nullptr);
+    void openprotree(const QString scr_path, const QString name, int file_cout, protreewidget *self);
+    void re_opentree(const QString scr_path, int file_cout, const QString &rootPath, const QString &parentPath);
 protected:
-    void run();
+    void run() override;
 private:
     QString _scr_path;
     QString _name;
@@ -25,6 +23,9 @@ signals:
     void progressupdate(int);
     void progressfinish(int);
     void progresscancle();
+    void rootItemReady(QString name, QString path);
+    void directoryDiscovered(QString parentPath, QString name, QString fullPath);
+    void fileDiscovered(QString parentPath, QString name, QString fullPath);
 public slots:
     void slotprogresscancle();
 };

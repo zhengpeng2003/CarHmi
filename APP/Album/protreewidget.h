@@ -13,6 +13,7 @@
 // #include <QAudioOutput>
 
 class opentreethread;
+class protreeitem;
 class protreewidget : public QTreeWidget
 {
     Q_OBJECT
@@ -44,6 +45,10 @@ public slots:
     void set_music();
     void startmusic();
     void stopmusic();
+    void onDirectoryDiscovered(const QString &parentPath, const QString &name, const QString &fullPath);
+    void onFileDiscovered(const QString &parentPath, const QString &name, const QString &fullPath);
+    void onRootItemReady(const QString &name, const QString &path);
+    void onThreadCancelledCleanup(const QString &rootPath);
 private:
     QAction * _open_file;
     QAction * _set_action;
@@ -73,6 +78,8 @@ private:
 
     QList<QUrl> _mediaplerlist;
     QSet<QString> _set_path;
+    QHash<QString, protreeitem*> _itemByPath;
+    QHash<QString, protreeitem*> _lastPicByRootPath;
 };
 
 #endif // PROTREEWIDGET_H
