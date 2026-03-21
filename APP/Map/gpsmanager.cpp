@@ -345,6 +345,16 @@ void GPSManager::confirmSearchResult(int index)
     emit searchMessageChanged();
     emit searchLocationFound(lat, lng, title);
     emit centerRequested(lat, lng, static_cast<int>(m_mapState), QStringLiteral("search-selection"));
+    clearSearchResults();
+}
+
+void GPSManager::clearSearchResults()
+{
+    if (m_searchResults.isEmpty()) {
+        return;
+    }
+    m_searchResults.clear();
+    emit searchResultsChanged();
 }
 
 void GPSManager::clearSearchHistory()

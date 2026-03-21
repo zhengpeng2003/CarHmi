@@ -31,6 +31,27 @@ Rectangle {
         onResumeFollowRequested: gpsManager.resumeGpsFollow()
     }
 
+    Column {
+        anchors.left: searchBar.left
+        anchors.top: searchBar.bottom
+        anchors.topMargin: 8
+        spacing: 6
+
+        Button {
+            width: 56
+            height: 32
+            text: "+"
+            onClicked: mapView.mapObj.zoomLevel += 1
+        }
+
+        Button {
+            width: 56
+            height: 32
+            text: "-"
+            onClicked: mapView.mapObj.zoomLevel -= 1
+        }
+    }
+
     MapTypePanel {
         anchors.right: parent.right
         anchors.top: parent.top

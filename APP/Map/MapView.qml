@@ -21,6 +21,7 @@ Item {
         center: QtPositioning.coordinate(gpsManager.latitude, gpsManager.longitude)
 
         gesture.enabled: true
+        pinch.enabled: true
         onCenterChanged: {
             if (!root.internalCenterUpdate) {
                 gpsManager.enterManualBrowse()
