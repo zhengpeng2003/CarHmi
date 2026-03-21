@@ -11,12 +11,25 @@ Rectangle {
     property var resultsModel: []
     property var historyModel: []
 
+    property alias inputField: inputField
+    property alias inputFieldText: inputField.text
+    signal inputFieldFocusChanged(bool focused)  // 确保信号名正确
+
     signal searchRequested(string keyword)
     signal resultSelected(int index)
     signal retryRequested()
     signal historySelected(string keyword)
     signal clearHistoryRequested()
     signal resumeFollowRequested()
+
+    function getInputText() {
+        return inputField.text
+    }
+
+    function setInputText(text) {
+        inputField.text = text
+        inputField.cursorPosition = text.length
+    }
 
     function setKeyword(value) {
         inputField.text = value
@@ -39,12 +52,21 @@ Rectangle {
             height: 30
             spacing: 4
 
-            InputField {
+            TextField {
                 id: inputField
                 width: parent.width - searchButton.width - retryButton.width - followButton.width - 12
                 height: parent.height
                 placeholderText: "输入地点关键字"
-                onAccepted: root.searchRequested(text)
+                font.pixelSize: 12
+
+                onActiveFocusChanged: {
+                    console.log("InputField focus changed:", activeFocus)  // 添加调试输出
+                    root.inputFieldFocusChanged(activeFocus)
+                }
+
+                onAccepted: {
+                    root.searchRequested(text)
+                }
             }
 
             Button {
@@ -52,7 +74,10 @@ Rectangle {
                 width: 52
                 height: parent.height
                 text: "搜索"
-                onClicked: root.searchRequested(inputField.text)
+                font.pixelSize: 11
+                onClicked: {
+                    root.searchRequested(inputField.text)
+                }
             }
 
             Button {
@@ -60,6 +85,7 @@ Rectangle {
                 width: 52
                 height: parent.height
                 text: "重试"
+                font.pixelSize: 11
                 onClicked: root.retryRequested()
             }
 
@@ -68,6 +94,7 @@ Rectangle {
                 width: 52
                 height: parent.height
                 text: "跟随"
+                font.pixelSize: 11
                 onClicked: root.resumeFollowRequested()
             }
         }
@@ -76,14 +103,14 @@ Rectangle {
             width: parent.width
             text: root.message
             color: "#ffe08a"
-            font.pixelSize: 12
+            font.pixelSize: 11
             wrapMode: Text.Wrap
         }
 
         Rectangle {
             width: parent.width
             visible: historyRepeater.count > 0
-            height: visible ? 28 : 0
+            height: visible ? 24 : 0
             color: "transparent"
 
             Row {
@@ -93,21 +120,24 @@ Rectangle {
                     text: "历史"
                     color: "white"
                     width: 24
+                    font.pixelSize: 10
                     verticalAlignment: Text.AlignVCenter
                 }
                 Repeater {
                     id: historyRepeater
                     model: root.historyModel
                     delegate: Button {
-                        height: 24
+                        height: 20
                         text: modelData
+                        font.pixelSize: 10
                         onClicked: root.historySelected(modelData)
                     }
                 }
                 Button {
                     visible: historyRepeater.count > 0
-                    height: 24
+                    height: 20
                     text: "清空"
+                    font.pixelSize: 10
                     onClicked: root.clearHistoryRequested()
                 }
             }
@@ -116,7 +146,7 @@ Rectangle {
         Rectangle {
             width: parent.width
             visible: resultsView.count > 0
-            height: visible ? Math.min(resultsView.contentHeight + 8, 120) : 0
+            height: visible ? Math.min(resultsView.contentHeight + 8, 100) : 0
             radius: 4
             color: "#1b2631"
             border.color: "#4f5b66"
@@ -129,7 +159,7 @@ Rectangle {
                 clip: true
                 delegate: Rectangle {
                     width: ListView.view.width
-                    height: 34
+                    height: 28
                     color: index % 2 === 0 ? "#243447" : "#1f2d3a"
 
                     Row {
@@ -140,14 +170,16 @@ Rectangle {
                             width: parent.width - chooseButton.width - 8
                             color: "white"
                             elide: Text.ElideRight
+                            font.pixelSize: 10
                             text: (modelData.title || "") + ((modelData.district || "") ? (" (" + modelData.district + ")") : "")
                             verticalAlignment: Text.AlignVCenter
                         }
                         Button {
                             id: chooseButton
-                            width: 48
-                            height: 24
+                            width: 40
+                            height: 20
                             text: "定位"
+                            font.pixelSize: 9
                             onClicked: {
                                 root.resultSelected(index)
                                 root.clearSearchUi()

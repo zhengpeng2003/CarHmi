@@ -3,25 +3,25 @@ import QtQuick.Controls 2.4
 
 Item {
     id: root
-    width: 76
+    width: 68
 
     property var mapObj
 
     Column {
         anchors.right: parent.right
         anchors.top: parent.top
-        spacing: 4
+        spacing: 2
 
         Repeater {
             model: root.mapObj ? root.mapObj.supportedMapTypes : []
 
             delegate: Button {
-                width: 72
-                height: 28
+                width: 64
+                height: 24
                 text: modelData.name
+                font.pixelSize: 10
                 onClicked: root.mapObj.activeMapType = modelData
             }
         }
     }
-
 }

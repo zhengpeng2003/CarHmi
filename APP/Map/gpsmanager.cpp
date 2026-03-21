@@ -373,3 +373,4 @@ void GPSManager::resumeGpsFollow()
     setMapState(GpsFollowState);
     emit centerRequested(m_lat, m_lng, static_cast<int>(m_mapState), QStringLiteral("resume-follow"));
 }
+

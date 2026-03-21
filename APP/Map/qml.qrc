@@ -2,7 +2,6 @@
     <qresource prefix="/">
         <file>Keyboard.qml</file>
         <file>main.qml</file>
-        <file>InputField.qml</file>
         <file>MapTypePanel.qml</file>
         <file>MapView.qml</file>
         <file>SearchBar.qml</file>

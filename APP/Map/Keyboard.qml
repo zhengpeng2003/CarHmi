@@ -3,27 +3,30 @@ import QtQuick.Controls 2.4
 
 Rectangle {
     id: root
-    height: 132
+    height: 100
     color: "#d8dde3"
     border.color: "#7f8c8d"
     border.width: 1
 
     property string inputText: ""
-
     signal enterPressed()
+    signal textUpdated(string text)  // 改名，避免与属性信号冲突
 
     function appendKey(keyValue) {
         inputText += keyValue
+        textUpdated(inputText)
     }
 
     function backspace() {
         if (inputText.length > 0) {
             inputText = inputText.slice(0, inputText.length - 1)
+            textUpdated(inputText)
         }
     }
 
     function clearAll() {
         inputText = ""
+        textUpdated(inputText)
     }
 
     function keyLabels(row) {
@@ -38,23 +41,24 @@ Rectangle {
 
     Column {
         anchors.fill: parent
-        anchors.margins: 4
-        spacing: 4
+        anchors.margins: 2
+        spacing: 2
 
         Repeater {
             model: 4
 
             delegate: Row {
-                spacing: 4
+                spacing: 2
                 anchors.horizontalCenter: parent.horizontalCenter
 
                 Repeater {
                     model: root.keyLabels(index)
 
                     delegate: Button {
-                        width: 42
-                        height: 20
+                        width: 40
+                        height: 25
                         text: modelData
+                        font.pixelSize: 10
                         onClicked: root.appendKey(text)
                     }
                 }
@@ -62,41 +66,46 @@ Rectangle {
         }
 
         Row {
-            spacing: 4
+            spacing: 2
             anchors.horizontalCenter: parent.horizontalCenter
 
             Button {
-                width: 72
-                height: 26
-                text: "Space"
+                width: 50
+                height: 22
+                text: "空格"
+                font.pixelSize: 10
                 onClicked: root.appendKey(" ")
             }
 
             Button {
-                width: 72
-                height: 26
-                text: "Back"
+                width: 50
+                height: 22
+                text: "回退"
+                font.pixelSize: 10
                 onClicked: root.backspace()
             }
 
             Button {
-                width: 72
-                height: 26
-                text: "Clear"
+                width: 50
+                height: 22
+                text: "清空"
+                font.pixelSize: 10
                 onClicked: root.clearAll()
             }
 
             Button {
-                width: 72
-                height: 26
-                text: "Enter"
+                width: 50
+                height: 22
+                text: "确认"
+                font.pixelSize: 10
                 onClicked: root.enterPressed()
             }
 
             Button {
-                width: 72
-                height: 26
-                text: "Hide"
+                width: 50
+                height: 22
+                text: "隐藏"
+                font.pixelSize: 10
                 onClicked: root.visible = false
             }
         }
