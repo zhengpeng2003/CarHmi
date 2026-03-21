@@ -7,6 +7,8 @@ Item {
     anchors.fill: parent
     property alias mapObj: map
     property bool internalCenterUpdate: false
+    property bool interactionsEnabled: true
+
 
     Plugin {
         id: mapPlugin
@@ -20,7 +22,9 @@ Item {
         zoomLevel: 15
         center: QtPositioning.coordinate(gpsManager.latitude, gpsManager.longitude)
 
-        gesture.enabled: true
+        gesture.enabled: root.interactionsEnabled
+        gesture.acceptedGestures: MapGestureArea.PanGesture | MapGestureArea.FlickGesture | MapGestureArea.PinchGesture
+        gesture.flickDeceleration: 2500
         onCenterChanged: {
             if (!root.internalCenterUpdate) {
                 gpsManager.enterManualBrowse()

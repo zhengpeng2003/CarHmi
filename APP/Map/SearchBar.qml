@@ -10,6 +10,8 @@ Rectangle {
     property string message: ""
     property var resultsModel: []
     property var historyModel: []
+    property alias keyword: inputField.text
+    property bool inputFocused: inputField.activeFocus
 
     signal searchRequested(string keyword)
     signal resultSelected(int index)
@@ -17,10 +19,32 @@ Rectangle {
     signal historySelected(string keyword)
     signal clearHistoryRequested()
     signal resumeFollowRequested()
+    signal inputFocusChanged(bool focused)
+    signal inputPressed()
 
     function setKeyword(value) {
         inputField.text = value
         inputField.forceActiveFocus()
+    }
+
+    function appendText(value) {
+        inputField.text += value
+        inputField.forceActiveFocus()
+    }
+
+    function backspace() {
+        if (inputField.text.length > 0)
+            inputField.text = inputField.text.slice(0, inputField.text.length - 1)
+        inputField.forceActiveFocus()
+    }
+
+    function clearKeyword() {
+        inputField.text = ""
+        inputField.forceActiveFocus()
+    }
+
+    function submitSearch() {
+        root.searchRequested(inputField.text)
     }
 
     Column {
@@ -40,6 +64,8 @@ Rectangle {
                 height: parent.height
                 placeholderText: "输入地点关键字"
                 onAccepted: root.searchRequested(text)
+                onFocusChanged: root.inputFocusChanged(focused)
+                onPressed: root.inputPressed()
             }
 
             Button {

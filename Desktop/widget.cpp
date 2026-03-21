@@ -4,8 +4,9 @@
 #include <QFile>
 #include <QDebug>
 #include <QApplication>
+#include <QCoreApplication>
+#include <QEvent>
 
-// ================= 构造 =================
 Widget::Widget(QWidget *parent)
     : QWidget(parent), ui(new Ui::Widget)
 {
@@ -13,7 +14,6 @@ Widget::Widget(QWidget *parent)
 
     resize(480,272);
     InitTestApps();
-
 }
 
 Widget::~Widget()
@@ -21,30 +21,24 @@ Widget::~Widget()
     delete ui;
 }
 
-// ================= 测试数据 =================
 void Widget::InitTestApps()
 {
     _AppInfos.clear();
 
-    // ⭐ 左半屏 rect（关键！！！）
     QVector<QRect> rects = calcAppRects(width()/2, height());
 
     createApp(1, "game", rects[0]);
     createApp(2, "music", rects[1]);
     createApp(3, "album", rects[2]);
     createApp(4, "setting", rects[3]);
-
-    // ⭐ 测试分页（一定要加）
     createApp(5, "map", rects[0]);
 
-    // ⭐ 右侧必须单独算（不能复用 rects）
     int rightX = width()/2;
     QRect rightRect(rightX + 5, 5, width() - rightX - 10, height() - 10);
 
     _envPanel = createEnvironmentPanel(rightRect, 26.3, 58, ":/images/car.png");
 }
 
-// ================= createApp（核心） =================
 AppInfo Widget::createApp(quint8 id, const QString &exeName, const QRect &rect)
 {
     QString name, log;
@@ -56,18 +50,15 @@ AppInfo Widget::createApp(quint8 id, const QString &exeName, const QRect &rect)
         name = "音乐"; log = ":/images/music.png";
     } else if (exeFileName.contains("album")) {
         name = "相册"; log = ":/images/album.png";
-    }
-     else if (exeFileName.contains("map")) {
-    name = "地图"; log = ":/images/map.png";
-    }
-    else {
+    } else if (exeFileName.contains("map")) {
+        name = "地图"; log = ":/images/map.png";
+    } else {
         name = "设置"; log = ":/images/default.png";
     }
 
     AppInfo info(id, name, exeName, log);
     _AppInfos.append(info);
 
-    // ⭐分页逻辑
     int perPage = 4;
     int index = _AppInfos.size() - 1;
     int pageIndex = index / perPage;
@@ -95,51 +86,101 @@ AppInfo Widget::createApp(quint8 id, const QString &exeName, const QRect &rect)
     AppWidget *w = new AppWidget(page);
     w->setAppInfo(info.Id, info.Name, info.Path, info.Log);
     w->setGeometry(rect);
+    w->installEventFilter(this);
     w->show();
-
-    connect(w, &AppWidget::clicked, this, [=](quint8){
-        StartApp(info);
-    });
 
     return info;
 }
 
-// ================= 滑动 =================
-void Widget::mousePressEvent(QMouseEvent *event)
+bool Widget::handlePress(const QPoint &globalPos, AppWidget *appWidget)
 {
-    if(event->x() > width()/2) return;
+    const QPoint localPos = mapFromGlobal(globalPos);
+    if (!isInLeftArea(localPos)) {
+        return false;
+    }
 
-    pressPos = event->pos();
+    pressPos = localPos;
     startX = leftContainer ? leftContainer->x() : 0;
+    isDragging = false;
+    pressedAppWidget = appWidget;
+    return true;
 }
 
-void Widget::mouseMoveEvent(QMouseEvent *event)
+bool Widget::handleMove(const QPoint &globalPos)
 {
-    if(!leftContainer) return;
-    if(event->x() > width()/2) return;
+    if (!leftContainer) {
+        return false;
+    }
 
-    int dx = event->pos().x() - pressPos.x();
-    int newX = startX + dx;
+    const QPoint localPos = mapFromGlobal(globalPos);
+    if (!isInLeftArea(localPos) && !pressedAppWidget) {
+        return false;
+    }
 
-    int minX = -(leftContainer->width() - width()/2);
+    const QPoint delta = localPos - pressPos;
+    if (!isDragging && delta.manhattanLength() >= DragThreshold) {
+        isDragging = true;
+    }
+
+    if (!isDragging) {
+        return pressedAppWidget != nullptr;
+    }
+
+    int newX = startX + delta.x();
+    const int minX = qMin(0, -(leftContainer->width() - width()/2));
 
     if(newX > 0) newX = 0;
     if(newX < minX) newX = minX;
 
     leftContainer->move(newX, 0);
+    return true;
 }
 
-void Widget::mouseReleaseEvent(QMouseEvent *event)
+bool Widget::handleRelease(const QPoint &globalPos, AppWidget *appWidget)
 {
-    if(!leftContainer) return;
-    if(event->x() > width()/2) return;
+    if (!leftContainer) {
+        return false;
+    }
 
-    int dx = event->pos().x() - pressPos.x();
+    const QPoint localPos = mapFromGlobal(globalPos);
+    const QPoint delta = localPos - pressPos;
+    const bool isClick = !isDragging && delta.manhattanLength() <= ClickThreshold;
 
-    if(dx > 60 && currentPage > 0)
-        currentPage--;
-    else if(dx < -60 && currentPage < pages.size()-1)
-        currentPage++;
+    if (isClick && pressedAppWidget && appWidget == pressedAppWidget) {
+        if (const AppInfo *info = findAppInfo(pressedAppWidget->appId())) {
+            qDebug() << "Desktop click confirmed, start app:" << info->Path;
+            pressedAppWidget = nullptr;
+            return StartApp(*info);
+        }
+    }
+
+    if (isDragging || qAbs(delta.x()) >= PageSwitchThreshold) {
+        if(delta.x() > PageSwitchThreshold && currentPage > 0)
+            currentPage--;
+        else if(delta.x() < -PageSwitchThreshold && currentPage < pages.size()-1)
+            currentPage++;
+    }
+
+    pressedAppWidget = nullptr;
+    snapToCurrentPage();
+    return isInLeftArea(localPos);
+}
+
+const AppInfo *Widget::findAppInfo(quint8 id) const
+{
+    for (const AppInfo &info : _AppInfos) {
+        if (info.Id == id) {
+            return &info;
+        }
+    }
+    return nullptr;
+}
+
+void Widget::snapToCurrentPage()
+{
+    if (!leftContainer) {
+        return;
+    }
 
     int targetX = -currentPage * (width()/2);
 
@@ -150,7 +191,47 @@ void Widget::mouseReleaseEvent(QMouseEvent *event)
     anim->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
-// ================= 环境面板 =================
+bool Widget::isInLeftArea(const QPoint &localPos) const
+{
+    return localPos.x() >= 0 && localPos.x() <= width()/2;
+}
+
+void Widget::mousePressEvent(QMouseEvent *event)
+{
+    handlePress(event->globalPos(), nullptr);
+}
+
+void Widget::mouseMoveEvent(QMouseEvent *event)
+{
+    handleMove(event->globalPos());
+}
+
+void Widget::mouseReleaseEvent(QMouseEvent *event)
+{
+    handleRelease(event->globalPos(), nullptr);
+}
+
+bool Widget::eventFilter(QObject *watched, QEvent *event)
+{
+    AppWidget *appWidget = qobject_cast<AppWidget *>(watched);
+    if (!appWidget) {
+        return QWidget::eventFilter(watched, event);
+    }
+
+    switch (event->type()) {
+    case QEvent::MouseButtonPress:
+        return handlePress(static_cast<QMouseEvent *>(event)->globalPos(), appWidget);
+    case QEvent::MouseMove:
+        return handleMove(static_cast<QMouseEvent *>(event)->globalPos());
+    case QEvent::MouseButtonRelease:
+        return handleRelease(static_cast<QMouseEvent *>(event)->globalPos(), appWidget);
+    default:
+        break;
+    }
+
+    return QWidget::eventFilter(watched, event);
+}
+
 EnvironmentWidget* Widget::createEnvironmentPanel(const QRect &rect, double temp, double hum, const QString &bg)
 {
     EnvironmentWidget *env = new EnvironmentWidget(this);
@@ -162,32 +243,50 @@ EnvironmentWidget* Widget::createEnvironmentPanel(const QRect &rect, double temp
     return env;
 }
 
-// ================= 启动 =================
 bool Widget::StartApp(const AppInfo &appinfo)
 {
-    QString scriptPath = QCoreApplication::applicationDirPath() + "/app/run.sh";
+    const QString appDir = QCoreApplication::applicationDirPath();
+    const QString scriptPath = appDir + "/app/run.sh";
+    const QString stateFile = appDir + "/tmp/desktop_state";
 
-    if (!QFile::exists(scriptPath))
+    if (!QFile::exists(scriptPath)) {
+        qWarning() << "App launcher script missing:" << scriptPath;
         return false;
+    }
 
-    QStringList args;
-    args << appinfo.Path;
+    QDir().mkpath(appDir + "/tmp");
+    QFile state(stateFile);
+    if (state.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        state.write("app\n");
+        state.close();
+    } else {
+        qWarning() << "Unable to write desktop_state before starting app:" << stateFile;
+        return false;
+    }
 
-    QProcess::startDetached(scriptPath, args);
+    const QStringList args{appinfo.Path};
+    qDebug() << "Desktop launching app:" << appinfo.Path << "via" << scriptPath;
 
+    if (!QProcess::startDetached(scriptPath, args)) {
+        qWarning() << "Failed to start app launcher for" << appinfo.Path;
+        if (state.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+            state.write("desktop\n");
+            state.close();
+        }
+        return false;
+    }
+
+    qDebug() << "Desktop exiting after handoff to app:" << appinfo.Path;
     qApp->quit();
     return true;
 }
 
-// ================= 布局 =================
 QVector<QRect> Widget::calcAppRects(quint32 screenW, quint32 screenH)
 {
     QVector<QRect> rects;
 
     int spacing = 5;
     int rows = 2, cols = 2;
-
-    // ⭐ 这里直接用 screenW（不要再 /2）
     int squareW = (screenW - (cols + 1) * spacing) / cols;
     int squareH = (screenH - (rows + 1) * spacing) / rows;
 
@@ -207,7 +306,6 @@ QVector<QRect> Widget::calcAppRects(quint32 screenW, quint32 screenH)
     return rects;
 }
 
-// ================= paint =================
 void Widget::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
