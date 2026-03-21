@@ -1,12 +1,13 @@
 ﻿#include "cardpanel.h"
 
 #include <QMouseEvent>
+#include <QPainterPath>
 #include "gamescaling.h"
 
 CardPanel::CardPanel(QWidget *parent)
     : QWidget{parent},is_front(0),_Card(nullptr),_Player(nullptr),is_select(false)
 {
-    GameScaling::applyFixedSize(this, 65, 100);
+    GameScaling::applyFixedSize(this, 100, 136);
 }
 
 void CardPanel::setimage(const QPixmap &map_fornt, const QPixmap &map_back)
@@ -79,7 +80,13 @@ bool CardPanel::GetSelect()
 }
 void CardPanel::paintEvent(QPaintEvent *event)
 {
+    Q_UNUSED(event);
     QPainter p1(this);
+    p1.setRenderHint(QPainter::Antialiasing, true);
+    p1.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    QPainterPath clipPath;
+    clipPath.addRoundedRect(rect().adjusted(0, 0, -1, -1), GameScaling::x(8), GameScaling::y(8));
+    p1.setClipPath(clipPath);
     p1.drawPixmap(rect(),getimage());
 
 }
@@ -89,5 +96,4 @@ void CardPanel::paintEvent(QPaintEvent *event)
     emit S_Cardsselect(event->button());
     return QWidget::mousePressEvent(event);
  }
-
 
