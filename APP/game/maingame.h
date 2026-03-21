@@ -15,6 +15,7 @@
 #include <cardpanel.h>
 #include <cards.h>
 #include <QLabel>
+#include <QPushButton>
 #include <QTimer>
 #include <QCloseEvent>
 #include <anmationpixmap.h>
@@ -22,6 +23,7 @@
 #include <timecount.h>
 #include <bgmcontrol.h>
 #include <QList>
+#include <QStringList>
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class Maingame;
@@ -34,6 +36,18 @@ class Maingame : public QMainWindow
     Q_OBJECT
 
 public:
+    enum SetupStage {
+        SetupResources = 0,
+        SetupGameControl,
+        SetupScoreboard,
+        SetupCardPanels,
+        SetupScene,
+        SetupButtons,
+        SetupMovePoints,
+        SetupTimers,
+        SetupAudio
+    };
+    Q_ENUM(SetupStage)
     enum  cardAlign{Horizontal,
                      Vertical};
     struct _Playercontext
@@ -122,7 +136,13 @@ public:
     CardPanel* PanelFromPos(const QPoint &pos) const;
     void ShowRobotHands();
     void ClearRobotHands();
+    int setupStageCount() const;
+    QString setupStageLabel(int stage) const;
+    void initializeStage(int stage);
     ~Maingame();
+signals:
+    void setupProgressChanged(int current, int total, QString label);
+    void setupFinished();
 protected:
     virtual void paintEvent(QPaintEvent *event)override;
     virtual void mouseMoveEvent(QMouseEvent *event)override;
@@ -132,6 +152,8 @@ protected:
 
 private:
     void SaveLastGameScores();
+    void initializeWindowChrome();
+    void initializeExitButton();
     QPoint _Base_point;
     QPixmap _IMage_Map;
     QPixmap _IMage_Cards;
@@ -167,6 +189,9 @@ private:
     int _LastUserScore = 0;
     int _LastLeftRobotScore = 0;
     int _LastRightRobotScore = 0;
+    bool _SetupCompleted = false;
+    QSet<int> _CompletedStages;
+    QPushButton *_ExitButton = nullptr;
 
 };
 #endif // MAINGAME_H

@@ -75,6 +75,7 @@ void protreewidget::add_tree(const QString &name,const QString &path)//添加文
     _set_path.insert(file_path);
     //protreeitem(QTreeWidget *view, const QString &name,const QString &path, int type):QTreeWidgetItem()
     auto *item=new  protreeitem(this,name,file_path,0);
+    _itemByPath.insert(file_path, item);
 
 
     //auto *item=new  QTreeWidgetItem(this);
@@ -154,6 +155,9 @@ void protreewidget::open_file_slots()
     //绑定添加文件与进度条的关系随时更新
     connect(_thread_create_pro.get(),&protreethread::signalupdateprogress,this,&protreewidget::progressupdate);
     connect(_thread_create_pro.get(),&protreethread::signalfishprogress,this,&protreewidget::progressfinish);
+    connect(_thread_create_pro.get(),&protreethread::signalDirectoryDiscovered,this,&protreewidget::onDirectoryDiscovered);
+    connect(_thread_create_pro.get(),&protreethread::signalFileDiscovered,this,&protreewidget::onFileDiscovered);
+    connect(_thread_create_pro.get(),&protreethread::signalCancelledCleanup,this,&protreewidget::onThreadCancelledCleanup);
 
     //当progress点击取消触发信号 然后将消息框删除目的为了释放
     connect(_dialog_progess,&QProgressDialog::canceled,this,&protreewidget::progresscancel);
@@ -201,9 +205,8 @@ void protreewidget::close_action_slots()
     auto * tempselect=dynamic_cast<protreeitem*>(select_item);
     auto delete_path=Protreeitem->GetPath();
     _set_path.remove(delete_path);
-
-
-
+    _itemByPath.remove(delete_path);
+    _lastPicByRootPath.remove(delete_path);
 
     if(is_delete_file)
     {
@@ -267,6 +270,9 @@ void protreewidget::open_tree(const QString &path)
 
         connect(_thread_open_pro.get(),&opentreethread::progressupdate,this,&protreewidget::progressupdate);
         connect(_thread_open_pro.get(),&opentreethread::progressfinish,this,&protreewidget::progressfinish);
+        connect(_thread_open_pro.get(),&opentreethread::rootItemReady,this,&protreewidget::onRootItemReady);
+        connect(_thread_open_pro.get(),&opentreethread::directoryDiscovered,this,&protreewidget::onDirectoryDiscovered);
+        connect(_thread_open_pro.get(),&opentreethread::fileDiscovered,this,&protreewidget::onFileDiscovered);
         connect(_dialog_progess,&QProgressDialog::canceled,this,&protreewidget::progresscancel);
         connect(this,&protreewidget::signalotcancle,_thread_open_pro.get(),&opentreethread::slotprogresscancle);
 
@@ -300,6 +306,8 @@ void protreewidget::progressupdate(int cout)
 void protreewidget::progressfinish(int cout)
 {
 
+    if(!_dialog_progess)
+        return;
     _dialog_progess->setValue(PROGRESS_MAX);
     _dialog_progess->deleteLater();//“嘿，Qt，等当前这一轮事件处理完了，你找个合适的时机，帮我把这个对象安全地删掉。
     //”Qt 会把这个请求放入事件队列中，​等控制权重新回到该线程的事件循环时，它才会真正调用 delete来销毁这个对象。
@@ -399,4 +407,69 @@ void protreewidget::slotdobleclick(QTreeWidgetItem *item, int column)
         }
     }
 
+}
+
+
+void protreewidget::onRootItemReady(const QString &name, const QString &path)
+{
+    if (_itemByPath.contains(path)) {
+        return;
+    }
+    auto *item = new protreeitem(this, name, path, TreeItemPro);
+    item->setData(0, Qt::ToolTipRole, path);
+    item->setData(0, Qt::DisplayRole, name);
+    item->setData(0, Qt::DecorationRole, QIcon(":/icon/dir.png"));
+    addTopLevelItem(item);
+    _itemByPath.insert(path, item);
+}
+
+void protreewidget::onDirectoryDiscovered(const QString &parentPath, const QString &name, const QString &fullPath)
+{
+    auto *parentItem = _itemByPath.value(parentPath, nullptr);
+    if (!parentItem || _itemByPath.contains(fullPath)) {
+        return;
+    }
+    auto *item = new protreeitem(parentItem, name, fullPath, parentItem->GetrootItem(), TreeItemDir);
+    item->setData(0, Qt::DisplayRole, name);
+    item->setData(0, Qt::DecorationRole, QIcon(":/icon/dir.png"));
+    item->setData(0, Qt::ToolTipRole, fullPath);
+    _itemByPath.insert(fullPath, item);
+}
+
+void protreewidget::onFileDiscovered(const QString &parentPath, const QString &name, const QString &fullPath)
+{
+    auto *parentItem = _itemByPath.value(parentPath, nullptr);
+    if (!parentItem || _itemByPath.contains(fullPath)) {
+        return;
+    }
+    auto *rootItem = parentItem->GetrootItem();
+    auto *item = new protreeitem(parentItem, name, fullPath, rootItem, TreeItemPic);
+    item->setData(0, Qt::DisplayRole, name);
+    item->setData(0, Qt::DecorationRole, QIcon(":/icon/pic.png"));
+    item->setData(0, Qt::ToolTipRole, fullPath);
+    _itemByPath.insert(fullPath, item);
+
+    const QString rootPath = rootItem ? rootItem->GetPath() : parentPath;
+    auto *previous = _lastPicByRootPath.value(rootPath, nullptr);
+    if (previous) {
+        previous->SetNextItem(item);
+        item->SetPreItem(previous);
+    }
+    _lastPicByRootPath.insert(rootPath, item);
+}
+
+void protreewidget::onThreadCancelledCleanup(const QString &rootPath)
+{
+    auto *rootItem = _itemByPath.value(rootPath, nullptr);
+    if (!rootItem) {
+        return;
+    }
+    const int index = indexOfTopLevelItem(rootItem);
+    if (index >= 0) {
+        delete takeTopLevelItem(index);
+    }
+    _itemByPath.remove(rootPath);
+    _lastPicByRootPath.remove(rootPath);
+    QDir dir(rootPath);
+    dir.removeRecursively();
 }

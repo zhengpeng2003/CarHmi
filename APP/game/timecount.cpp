@@ -1,18 +1,20 @@
 ﻿#include "timecount.h"
 #include <QPainter>
+#include "gameresourcecache.h"
+#include "gamescaling.h"
 
 Timecount::Timecount(QWidget *parent)
     : QWidget{parent}
 {
-    this->setFixedSize(70,70);
+    GameScaling::applyFixedSize(this, 70, 70);
 
     _Timer = new QTimer(this);
     connect(_Timer, &QTimer::timeout, this, [=](){
         count--;
         if(count < 10 && count > 0)
         {
-            _BgPix.load(":/images/clock.png");
-            _Number = QPixmap(":/images/number.png").copy(count * 40, 0, 30, 42).scaled(20, 30);
+            _BgPix = GameResourceCache::pixmap(":/images/clock.png");
+            _Number = GameResourceCache::pixmap(":/images/number.png").copy(count * 40, 0, 30, 42).scaled(GameScaling::size(20, 30));
         }
         if(count == 5)
         {
@@ -76,6 +78,6 @@ void Timecount::paintEvent(QPaintEvent *event)
     // 绘制数字
     if(!_Number.isNull())
     {
-        painter.drawPixmap(24, 24, _Number);
+        painter.drawPixmap(GameScaling::x(24), GameScaling::y(24), _Number);
     }
 }

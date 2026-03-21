@@ -1,11 +1,12 @@
 ﻿#include "cardpanel.h"
 
 #include <QMouseEvent>
+#include "gamescaling.h"
 
 CardPanel::CardPanel(QWidget *parent)
     : QWidget{parent},is_front(0),_Card(nullptr),_Player(nullptr),is_select(false)
 {
-    this->setFixedSize(65,100);
+    GameScaling::applyFixedSize(this, 65, 100);
 }
 
 void CardPanel::setimage(const QPixmap &map_fornt, const QPixmap &map_back)

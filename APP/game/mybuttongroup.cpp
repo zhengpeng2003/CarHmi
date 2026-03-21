@@ -1,5 +1,6 @@
 ﻿#include "mybuttongroup.h"
 #include "ui_mybuttongroup.h"
+#include "gamescaling.h"
 
 MybuttonGroup::MybuttonGroup(QWidget *parent)
     : QWidget(parent)
@@ -32,7 +33,7 @@ void MybuttonGroup::Initbutton()
     for(int i=0;i<7;i++)
     {
 
-        _Pushbuttons.at(i)->setFixedSize(90,45);
+        GameScaling::applyFixedSize(_Pushbuttons.at(i), 90, 45);
     }
     //出牌
     connect(ui->pushButton_no,&QPushButton::clicked,this,&MybuttonGroup::S_NoHand);

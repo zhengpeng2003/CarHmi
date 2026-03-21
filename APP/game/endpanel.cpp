@@ -1,4 +1,5 @@
 ﻿#include "endpanel.h"
+#include "gamescaling.h"
 EndPanel::EndPanel(player *player, QWidget *parent) :QWidget{parent},_Player(player)
 {
 
@@ -41,11 +42,11 @@ EndPanel::EndPanel(player *player, QWidget *parent) :QWidget{parent},_Player(pla
     )";
     QPushButton * btncontinue=new QPushButton(this);
     btncontinue->setStyleSheet(stylebtn);
-    btncontinue->move(84,429);
-    btncontinue->setFixedSize(231,48);
-    WidgetSCore->move(75,230);
-    WidgetSCore->setFixedSize(260,160);
-    Fontpix->move(125,125);
+    GameScaling::move(btncontinue, 84, 429);
+    GameScaling::applyFixedSize(btncontinue, 231, 48);
+    GameScaling::move(WidgetSCore, 75, 230);
+    GameScaling::applyFixedSize(WidgetSCore, 260, 160);
+    GameScaling::move(Fontpix, 125, 125);
     connect(btncontinue,&QPushButton::clicked,this,&EndPanel::S_Continue);
 }
 

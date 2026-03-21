@@ -15,6 +15,8 @@ SOURCES += \
     cardpanel.cpp \
     cards.cpp \
     endpanel.cpp \
+    gameresourcecache.cpp \
+    gamescaling.cpp \
     gamecontrol.cpp \
     loadprocess.cpp \
     main.cpp \
@@ -38,6 +40,8 @@ HEADERS += \
     cardpanel.h \
     cards.h \
     endpanel.h \
+    gameresourcecache.h \
+    gamescaling.h \
     gamecontrol.h \
     loadprocess.h \
     maingame.h \

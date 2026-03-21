@@ -1,279 +1,365 @@
 #include "gpsmanager.h"
-#include <QDebug>
+
+#include <QCoreApplication>
 #include <QDateTime>
+#include <QDebug>
+#include <QFileInfo>
+#include <QGeoServiceProvider>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QNetworkConfigurationManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSettings>
+#include <QSslSocket>
+#include <QUrl>
 #include <QUrlQuery>
-#include <QDebug>
-#include <unistd.h>
+#include <QtMath>
 #include <fcntl.h>
-#include <termios.h>
 #include <string.h>
+#include <termios.h>
+#include <unistd.h>
 
 GPSManager::GPSManager(QObject *parent)
     : QObject(parent),
-    useSerial(false),
-    m_lat(39.9),
-    m_lng(116.3),
-    networkManager(new QNetworkAccessManager(this))
+      networkManager(new QNetworkAccessManager(this))
 {
-    // 打开串口
-    fd = open("/dev/ttymxc2", O_RDONLY | O_NOCTTY| O_NONBLOCK);
+    loadConfig();
+    detectEnvironment();
 
+    fd = open(m_config.serialPort.toLocal8Bit().constData(), O_RDONLY | O_NOCTTY | O_NONBLOCK);
     if (fd >= 0) {
         struct termios opt;
         tcflush(fd, TCIOFLUSH);
         tcgetattr(fd, &opt);
-
         cfsetispeed(&opt, B9600);
         cfsetospeed(&opt, B9600);
-
         opt.c_cflag &= ~CSIZE;
         opt.c_cflag |= CS8;
         opt.c_cflag &= ~PARENB;
         opt.c_cflag &= ~CSTOPB;
-
-
-        opt.c_cc[VMIN] = 0;   // 不等待最少字符
-        opt.c_cc[VTIME] = 0;  // 不等待超时
-
+        opt.c_cc[VMIN] = 0;
+        opt.c_cc[VTIME] = 0;
         tcsetattr(fd, TCSANOW, &opt);
-
-        qDebug() << "serial open ok";
+        qDebug() << "serial open ok:" << m_config.serialPort;
     } else {
-        qDebug() << "serial open failed";
+        qDebug() << "serial open failed:" << m_config.serialPort;
     }
 
-    // 初始化nmea
     nmea_zero_INFO(&info);
     nmea_parser_init(&parser);
 
-    // 定时读取
     timer = new QTimer(this);
-    connect(timer, &QTimer::timeout,
-            this, &GPSManager::readSerialData);
+    connect(timer, &QTimer::timeout, this, &GPSManager::readSerialData);
     timer->start(1000);
 
-    // 检测切换
     checkTimer = new QTimer(this);
-    connect(checkTimer, &QTimer::timeout,
-            this, &GPSManager::checkGpsSource);
-    checkTimer->start(1000);
+    connect(checkTimer, &QTimer::timeout, this, &GPSManager::checkGpsSource);
+    checkTimer->start(2000);
 
-    // 系统GPS
     sysGps = QGeoPositionInfoSource::createDefaultSource(this);
     if (sysGps) {
-        connect(sysGps, &QGeoPositionInfoSource::positionUpdated,
-                this, &GPSManager::updateSystemGPS);
+        connect(sysGps, &QGeoPositionInfoSource::positionUpdated, this, &GPSManager::updateSystemGPS);
         sysGps->startUpdates();
     }
-
-    lastSerialTime = 0;
 }
 
 GPSManager::~GPSManager()
 {
     nmea_parser_destroy(&parser);
-    if (fd > 0) close(fd);
+    if (fd >= 0) {
+        close(fd);
+    }
+}
+
+void GPSManager::loadConfig()
+{
+    const QString configPath = QCoreApplication::applicationDirPath() + QStringLiteral("/map.ini");
+    QSettings settings(configPath, QSettings::IniFormat);
+    m_config.serialPort = settings.value(QStringLiteral("map/serial_port"), m_config.serialPort).toString();
+    m_config.pluginName = settings.value(QStringLiteral("map/plugin"), m_config.pluginName).toString();
+    m_config.apiKey = settings.value(QStringLiteral("map/api_key")).toString();
+    m_config.searchTimeoutMs = settings.value(QStringLiteral("network/search_timeout_ms"), m_config.searchTimeoutMs).toInt();
+    m_config.retryCount = settings.value(QStringLiteral("network/retry_count"), m_config.retryCount).toInt();
+}
+
+void GPSManager::detectEnvironment()
+{
+    m_pluginAvailable = QGeoServiceProvider::availableServiceProviders().contains(m_config.pluginName);
+    QNetworkConfigurationManager networkManager;
+    m_networkAvailable = networkManager.isOnline();
+    m_sslAvailable = QSslSocket::supportsSsl();
+
+    QStringList issues;
+    if (!m_pluginAvailable) {
+        issues << QStringLiteral("地图插件不可用: %1").arg(m_config.pluginName);
+    }
+    if (!m_networkAvailable) {
+        issues << QStringLiteral("网络未连接");
+    }
+    if (!m_sslAvailable) {
+        issues << QStringLiteral("SSL/OpenSSL 不可用，在线搜索将降级");
+    }
+    if (m_config.apiKey.trimmed().isEmpty()) {
+        issues << QStringLiteral("缺少 API Key 配置");
+    }
+
+    m_environmentMessage = issues.isEmpty()
+            ? QStringLiteral("环境检测通过")
+            : issues.join(QStringLiteral("；"));
+    emit environmentMessageChanged();
+}
+
+bool GPSManager::environmentReadyForSearch(QString *errorMessage) const
+{
+    if (!m_networkAvailable) {
+        if (errorMessage) *errorMessage = QStringLiteral("当前无网络，无法执行地点搜索");
+        return false;
+    }
+    if (!m_sslAvailable) {
+        if (errorMessage) *errorMessage = QStringLiteral("SSL 环境不可用，无法访问 HTTPS 搜索接口");
+        return false;
+    }
+    if (m_config.apiKey.trimmed().isEmpty()) {
+        if (errorMessage) *errorMessage = QStringLiteral("请在 map.ini 中配置 API Key");
+        return false;
+    }
+    return true;
+}
+
+void GPSManager::setMapState(MapState state)
+{
+    if (m_mapState == state) {
+        return;
+    }
+    m_mapState = state;
+    emit mapStateChanged();
+}
+
+void GPSManager::handlePositionUpdate(double lat, double lng, const QString &source)
+{
+    const bool changed = qAbs(lat - m_lat) > 0.00001 || qAbs(lng - m_lng) > 0.00001;
+    m_lat = lat;
+    m_lng = lng;
+    if (changed) {
+        emit positionChanged(m_lat, m_lng);
+    }
+    if (m_mapState == GpsFollowState) {
+        emit centerRequested(m_lat, m_lng, static_cast<int>(m_mapState), source);
+    }
 }
 
 void GPSManager::readSerialData()
 {
     if (fd < 0) return;
-
-    // ========== 添加：先检查是否有数据可读，避免阻塞 ==========
     fd_set readSet;
     struct timeval timeout;
-
     FD_ZERO(&readSet);
     FD_SET(fd, &readSet);
     timeout.tv_sec = 0;
-    timeout.tv_usec = 100000;  // 100ms超时
-
-    if (select(fd + 1, &readSet, NULL, NULL, &timeout) <= 0) {
-        return;  // 没有数据可读，直接返回
+    timeout.tv_usec = 100000;
+    if (select(fd + 1, &readSet, nullptr, nullptr, &timeout) <= 0) {
+        return;
     }
-    // ========== 添加结束 ==========
 
     char buff[4096] = {0};
     char tmp[100] = {0};
     int len = 0;
-
-    for (int i = 0; i < 8; i++) {
-        int size = read(fd, tmp, 100);
+    for (int i = 0; i < 8; ++i) {
+        const int size = read(fd, tmp, 100);
         if (size > 0) {
             memcpy(buff + len, tmp, size);
             len += size;
         } else {
-            break;  // 没有更多数据，退出循环
+            break;
         }
     }
-
     if (len <= 0) return;
 
     lastSerialTime = QDateTime::currentMSecsSinceEpoch();
-
     nmea_parse(&parser, buff, len, &info);
-
     if (info.sig > 0) {
-        double lat = nmea_ndeg2degree(info.lat);
-        double lng = nmea_ndeg2degree(info.lon);
-
-        if (qAbs(lat - m_lat) > 0.00001 ||
-            qAbs(lng - m_lng) > 0.00001)
-        {
-            m_lat = lat;
-            m_lng = lng;
-            useSerial = true;
-
-            emit positionChanged(m_lat, m_lng);
-        }
+        useSerial = true;
+        handlePositionUpdate(nmea_ndeg2degree(info.lat), nmea_ndeg2degree(info.lon), QStringLiteral("serial-gps"));
     }
 }
 
 void GPSManager::updateSystemGPS(const QGeoPositionInfo &pos)
 {
     if (useSerial) return;
-
-    m_lat = pos.coordinate().latitude();
-    m_lng = pos.coordinate().longitude();
-
-    emit positionChanged(m_lat, m_lng);
+    handlePositionUpdate(pos.coordinate().latitude(), pos.coordinate().longitude(), QStringLiteral("system-gps"));
 }
 
 void GPSManager::checkGpsSource()
 {
-    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    QNetworkConfigurationManager networkManager;
+    const bool online = networkManager.isOnline();
+    if (m_networkAvailable != online) {
+        m_networkAvailable = online;
+        detectEnvironment();
+    }
 
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
     if (useSerial && (now - lastSerialTime > 3000)) {
         useSerial = false;
         qDebug() << "switch to system gps";
     }
 }
 
+void GPSManager::pushSearchHistory(const QString &keyword)
+{
+    if (keyword.isEmpty()) {
+        return;
+    }
+    m_searchHistory.removeAll(keyword);
+    m_searchHistory.prepend(keyword);
+    while (m_searchHistory.size() > 10) {
+        m_searchHistory.removeLast();
+    }
+    emit searchHistoryChanged();
+}
+
+void GPSManager::finishSearchFailure(const QString &keyword, const QString &message)
+{
+    m_searchMessage = message;
+    m_searchResults.clear();
+    emit searchResultsChanged();
+    emit searchMessageChanged();
+    emit searchFailed(keyword);
+}
+
 void GPSManager::searchPlace(const QString &keyword)
 {
     const QString trimmedKeyword = keyword.trimmed();
-    qDebug() << "=== searchPlace called ===";
-    qDebug() << "Keyword:" << trimmedKeyword;
-
+    m_lastSearchKeyword = trimmedKeyword;
     if (trimmedKeyword.isEmpty()) {
-        m_searchMessage = QStringLiteral("请输入城市拼音");
-        emit searchMessageChanged();
-        emit searchFailed(trimmedKeyword);
+        finishSearchFailure(trimmedKeyword, QStringLiteral("请输入地点关键词"));
         return;
     }
 
-    // 直接硬编码API密钥
-    const QString apiKey = "d3bdf063df89186ca9440197cd54c39f";
-    qDebug() << "API Key:" << apiKey;
-
-    // 可选：检查密钥格式是否正确
-    if (apiKey.isEmpty() || apiKey.length() < 10) {
-        m_searchMessage = QStringLiteral("API密钥无效");
-        emit searchMessageChanged();
-        emit searchFailed(trimmedKeyword);
+    QString envError;
+    if (!environmentReadyForSearch(&envError)) {
+        finishSearchFailure(trimmedKeyword, envError);
         return;
     }
-
-    QUrl url(QStringLiteral("https://restapi.amap.com/v3/geocode/geo"));
-    QUrlQuery query;
-    query.addQueryItem(QStringLiteral("address"), trimmedKeyword);
-    query.addQueryItem(QStringLiteral("key"), apiKey);  // 参数名是"key"
-
-    url.setQuery(query);
-
-    qDebug() << "Request URL:" << url.toString();
 
     m_searchMessage = QStringLiteral("搜索中...");
     emit searchMessageChanged();
 
-    QNetworkReply *reply = networkManager->get(QNetworkRequest(url));
+    QUrl url(QStringLiteral("https://restapi.amap.com/v3/geocode/geo"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("address"), trimmedKeyword);
+    query.addQueryItem(QStringLiteral("key"), m_config.apiKey);
+    url.setQuery(query);
+
+    QNetworkRequest request(url);
+    QNetworkReply *reply = networkManager->get(request);
+    QTimer::singleShot(m_config.searchTimeoutMs, reply, [reply]() {
+        if (reply->isRunning()) {
+            reply->abort();
+        }
+    });
+
     connect(reply, &QNetworkReply::finished, this, [this, reply, trimmedKeyword]() {
-        qDebug() << "=== Request finished ===";
-        qDebug() << "Error code:" << reply->error();
-
         reply->deleteLater();
-
         if (reply->error() != QNetworkReply::NoError) {
-            qDebug() << "Network error:" << reply->errorString();
-            m_searchMessage = QStringLiteral("网络错误，请检查网络连接");
-            emit searchMessageChanged();
-            emit searchFailed(trimmedKeyword);
+            finishSearchFailure(trimmedKeyword, QStringLiteral("搜索失败，可检查网络后重试"));
             return;
         }
 
-        QByteArray responseData = reply->readAll();
-        qDebug() << "Response data:" << responseData;
-
-        const QJsonDocument document = QJsonDocument::fromJson(responseData);
+        const QJsonDocument document = QJsonDocument::fromJson(reply->readAll());
         if (document.isNull()) {
-            qDebug() << "Invalid JSON response";
-            m_searchMessage = QStringLiteral("响应数据格式错误");
-            emit searchMessageChanged();
-            emit searchFailed(trimmedKeyword);
+            finishSearchFailure(trimmedKeyword, QStringLiteral("响应数据格式错误"));
             return;
         }
 
         const QJsonObject object = document.object();
-        QString status = object.value(QStringLiteral("status")).toString();
-        QString info = object.value(QStringLiteral("info")).toString();
-
-        qDebug() << "Status:" << status;
-        qDebug() << "Info:" << info;
-
-        if (status != QStringLiteral("1")) {
-            QString errorMsg;
-            if (info == "INVALID_USER_KEY") {
-                errorMsg = "API密钥无效";
-            } else if (info == "DAILY_QUERY_OVER_LIMIT") {
-                errorMsg = "今日查询次数已达上限";
-            } else {
-                errorMsg = QStringLiteral("搜索失败: ") + info;
-            }
-            m_searchMessage = errorMsg;
-            emit searchMessageChanged();
-            emit searchFailed(trimmedKeyword);
+        if (object.value(QStringLiteral("status")).toString() != QStringLiteral("1")) {
+            finishSearchFailure(trimmedKeyword,
+                                QStringLiteral("搜索失败: %1").arg(object.value(QStringLiteral("info")).toString()));
             return;
         }
 
         const QJsonArray geocodes = object.value(QStringLiteral("geocodes")).toArray();
-
         if (geocodes.isEmpty()) {
-            m_searchMessage = QStringLiteral("未找到该地点");
-            emit searchMessageChanged();
-            emit searchFailed(trimmedKeyword);
+            finishSearchFailure(trimmedKeyword, QStringLiteral("无匹配结果，请调整关键词后重试"));
             return;
         }
 
-        const QString location = geocodes.first().toObject().value(QStringLiteral("location")).toString();
-        const QStringList parts = location.split(",");
-        if (parts.size() != 2) {
-            m_searchMessage = QStringLiteral("坐标数据格式错误");
-            emit searchMessageChanged();
-            emit searchFailed(trimmedKeyword);
+        QVariantList results;
+        for (const QJsonValue &value : geocodes) {
+            const QJsonObject item = value.toObject();
+            const QString location = item.value(QStringLiteral("location")).toString();
+            const QStringList parts = location.split(',');
+            if (parts.size() != 2) {
+                continue;
+            }
+            bool lngOk = false;
+            bool latOk = false;
+            const double lng = parts.at(0).toDouble(&lngOk);
+            const double lat = parts.at(1).toDouble(&latOk);
+            if (!latOk || !lngOk) {
+                continue;
+            }
+            QVariantMap result;
+            result.insert(QStringLiteral("title"), item.value(QStringLiteral("formatted_address")).toString());
+            result.insert(QStringLiteral("district"), item.value(QStringLiteral("district")).toString());
+            result.insert(QStringLiteral("city"), item.value(QStringLiteral("city")).toVariant().toString());
+            result.insert(QStringLiteral("lat"), lat);
+            result.insert(QStringLiteral("lng"), lng);
+            results.append(result);
+        }
+
+        if (results.isEmpty()) {
+            finishSearchFailure(trimmedKeyword, QStringLiteral("结果解析失败，请重试"));
             return;
         }
 
-        bool lngOk = false;
-        bool latOk = false;
-        const double lng = parts.at(0).toDouble(&lngOk);
-        const double lat = parts.at(1).toDouble(&latOk);
-        if (!latOk || !lngOk) {
-            m_searchMessage = QStringLiteral("坐标转换失败");
-            emit searchMessageChanged();
-            emit searchFailed(trimmedKeyword);
-            return;
-        }
-
-        m_searchMessage = QStringLiteral("已定位到：") + trimmedKeyword;
+        m_searchResults = results;
+        m_searchMessage = QStringLiteral("找到 %1 个候选结果，请确认").arg(results.size());
+        pushSearchHistory(trimmedKeyword);
+        emit searchResultsChanged();
         emit searchMessageChanged();
-        emit searchLocationFound(lat, lng, trimmedKeyword);
-
-        qDebug() << "Search success! Location:" << trimmedKeyword
-                 << "Lat:" << lat << "Lng:" << lng;
     });
+}
+
+void GPSManager::retryLastSearch()
+{
+    if (!m_lastSearchKeyword.isEmpty()) {
+        searchPlace(m_lastSearchKeyword);
+    }
+}
+
+void GPSManager::confirmSearchResult(int index)
+{
+    if (index < 0 || index >= m_searchResults.size()) {
+        return;
+    }
+    const QVariantMap result = m_searchResults.at(index).toMap();
+    const double lat = result.value(QStringLiteral("lat")).toDouble();
+    const double lng = result.value(QStringLiteral("lng")).toDouble();
+    const QString title = result.value(QStringLiteral("title")).toString();
+    setMapState(SearchLocatedState);
+    m_searchMessage = QStringLiteral("已定位到：%1").arg(title);
+    emit searchMessageChanged();
+    emit searchLocationFound(lat, lng, title);
+    emit centerRequested(lat, lng, static_cast<int>(m_mapState), QStringLiteral("search-selection"));
+}
+
+void GPSManager::clearSearchHistory()
+{
+    m_searchHistory.clear();
+    emit searchHistoryChanged();
+}
+
+void GPSManager::enterManualBrowse()
+{
+    setMapState(ManualBrowseState);
+}
+
+void GPSManager::resumeGpsFollow()
+{
+    setMapState(GpsFollowState);
+    emit centerRequested(m_lat, m_lng, static_cast<int>(m_mapState), QStringLiteral("resume-follow"));
 }

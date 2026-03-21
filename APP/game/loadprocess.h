@@ -1,7 +1,10 @@
-﻿#ifndef LOADPROCESS_H
+#ifndef LOADPROCESS_H
 #define LOADPROCESS_H
 
+#include <QPointer>
 #include <QWidget>
+
+class Maingame;
 
 class Loadprocess : public QWidget
 {
@@ -9,13 +12,19 @@ class Loadprocess : public QWidget
 public:
     explicit Loadprocess(QWidget *parent = nullptr);
 protected:
-    virtual void paintEvent(QPaintEvent *event)override;
-signals:
+    void showEvent(QShowEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
 private:
+    void startBootstrap();
+    void updateProgress(int current, int total, const QString &label);
+
     QPixmap _MainPix;
     QPixmap _Process;
-    QTimer *_Timer;
-    int _Rate=0;
+    QPointer<Maingame> _Maingame;
+    int _ProgressValue = 0;
+    int _ProgressMax = 100;
+    bool _Started = false;
+    QString _StageLabel;
 };
 
 #endif // LOADPROCESS_H
