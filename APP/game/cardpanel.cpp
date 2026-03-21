@@ -13,8 +13,23 @@ void CardPanel::setimage(const QPixmap &map_fornt, const QPixmap &map_back)
 
     this->_Map_front=map_fornt;
     this->_Map_back=map_back;
+    if(!_Map_front.isNull())
+    {
+        setCardSize(_Map_front.size());
+    }
+    else if(!_Map_back.isNull())
+    {
+        setCardSize(_Map_back.size());
+    }
 
 
+}
+void CardPanel::setCardSize(const QSize &size)
+{
+    if(size.isValid())
+    {
+        setFixedSize(size);
+    }
 }
 QPixmap CardPanel::getimage()
 {

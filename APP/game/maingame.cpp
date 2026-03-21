@@ -284,6 +284,7 @@ void Maingame::InitCardImage(QPixmap Card_front,QPixmap Card_back,Card *card)//�
 {
     CardPanel * cardpenel=new CardPanel(this);
     cardpenel->setimage(Card_front,Card_back);
+    cardpenel->setCardSize(_IMage_Card_Size);
     cardpenel->setcard(card);
     cardpenel->hide();//隐藏
     connect(cardpenel,&CardPanel::S_Cardsselect,this,&Maingame::Cardpanel);
@@ -297,22 +298,36 @@ void Maingame::InitGroupbtn()
 {
     ui->widget->Initbutton();
     ui->widget->Setbtngroupstate(MybuttonGroup::Start);
+    const int sideMargin = std::max(10, _IMage_Card_Size.width() / 3);
+    const int topMargin = std::max(16, _IMage_Card_Size.height() / 4);
+    const int verticalWidth = _IMage_Card_Size.width() + sideMargin;
+    const int horizontalHeight = _IMage_Card_Size.height() + 30;
+    const int handZoneTop = topMargin + _IMage_Card_Size.height() + 10;
+    const int handZoneBottom = height() - horizontalHeight - 8;
+    const int verticalHeight = std::max(_IMage_Card_Size.height() + 20, handZoneBottom - handZoneTop);
+
     //3个位置
     // 1. 放置玩家扑克牌的区域
     const QRect cardsRect[] =
         {
             // x, y, width, height
-            QRect(90, 130, 100, height() - 200),                    // 左侧机器人
-            QRect(rect().right() - 190, 130, 100, height() - 200),  // 右侧机器人
-            QRect(250, rect().bottom() - 120, width() - 500, 100)   // 当前玩家
+            QRect(sideMargin, handZoneTop, verticalWidth, verticalHeight),                                    // 左侧机器人
+            QRect(width() - sideMargin - verticalWidth, handZoneTop, verticalWidth, verticalHeight),          // 右侧机器人
+            QRect(sideMargin + verticalWidth + 12,
+                  height() - horizontalHeight - 8,
+                  std::max(_IMage_Card_Size.width(), width() - 2 * (sideMargin + verticalWidth + 12)),
+                  horizontalHeight)                                                                            // 当前玩家
         };
 
     // 2. 玩家出牌的区域
     const QRect playHandRect[] =
         {
-            QRect(260, 210, 100, 100),                             // 左侧机器人
-            QRect(rect().right() - 360, 210, 100, 100),            // 右侧机器人
-            QRect(150, rect().bottom() - 290, width() - 300, 100)  // 当前玩家
+            ClampRectToWindow(QRect(cardsRect[0].right() + 12, handZoneTop + 10,
+                                    _IMage_Card_Size.width() * 2, _IMage_Card_Size.height() + 20)),          // 左侧机器人
+            ClampRectToWindow(QRect(cardsRect[1].left() - _IMage_Card_Size.width() * 2 - 12, handZoneTop + 10,
+                                    _IMage_Card_Size.width() * 2, _IMage_Card_Size.height() + 20)),          // 右侧机器人
+            ClampRectToWindow(QRect(sideMargin + verticalWidth + 8, height() - horizontalHeight - _IMage_Card_Size.height() - 20,
+                                    width() - 2 * (sideMargin + verticalWidth + 8), _IMage_Card_Size.height() + 20))  // 当前玩家
         };
 
     // 3. 玩家头像显示的位置
@@ -383,6 +398,11 @@ void Maingame::InitGroupbtn()
 }
 void Maingame::SatrtPend()
 {
+    if(_Timer_PlayHand->isActive())
+    {
+        _Timer_PlayHand->stop();
+    }
+
     ui->widget->SetStartButtonVisible(false);
     _CanSelectCards = false;
     _Movetime = 0;
@@ -445,18 +465,29 @@ void Maingame::SatrtPend()
     }
 
     //开始发牌定时器启动
-    _Timer_PlayHand->start(15);
+    _Timer_PlayHand->start(25);
 }
 
 void Maingame::PlayHandtimer(player * Player,int Movetime)
 {
+    if(!_Gamecontrol || !Player)
+    {
+        _Timer_PlayHand->stop();
+        return;
+    }
 
+    auto playerIt = _Playercontexts.find(Player);
+    if(playerIt == _Playercontexts.end())
+    {
+        _Timer_PlayHand->stop();
+        return;
+    }
 
-    QRect TempRect=_Playercontexts.find(Player).value()->_PLayerCardsRect;
+    QRect TempRect=playerIt.value()->_PLayerCardsRect;
     auto x=TempRect.x();
     auto y=TempRect.y();
     int Cardpool=_Gamecontrol->GetCardcount();
-    if(Cardpool==3)
+    if(Cardpool<=3)
     {
 
 
@@ -467,7 +498,8 @@ void Maingame::PlayHandtimer(player * Player,int Movetime)
         _PendCards->hide();
         // 1. 取出三张地主牌
         QVector<Card*> lordCards;
-        for (int i = 0; i < 3; ++i) {
+        lordCards.reserve(3);
+        for (int i = 0; i < 3 && _Gamecontrol->GetCardcount() > 0; ++i) {
             Card* card = _Gamecontrol->TakeOneCard();
             if (card) {
                 lordCards.append(card);
@@ -483,14 +515,19 @@ void Maingame::PlayHandtimer(player * Player,int Movetime)
 
         for (int i = 0; i < lordCards.size(); ++i) {
             Card* card = lordCards[i];
+            if(_LordCards[i])
+            {
+                _LordCards[i]->deleteLater();
+                _LordCards[i] = nullptr;
+            }
             CardPanel* lordPanel = new CardPanel(this);
 
             if (_CardPenelMap.contains(*card)) {
                 lordPanel->setimage(_CardPenelMap[*card]->Getimagefont(), _Card_back);
             }
 
+            lordPanel->setCardSize(_IMage_Card_Size);
             lordPanel->move((width()-_IMage_Card_Size.width()*5)/2 + i*2*_IMage_Card_Size.width(), 20);
-            lordPanel->resize(_IMage_Card_Size.width(), _IMage_Card_Size.height());
             lordPanel->hide();
             lordPanel->setfront(false);
             _LordCards[i] = lordPanel;
@@ -503,6 +540,7 @@ void Maingame::PlayHandtimer(player * Player,int Movetime)
 
         // qDebug() << "地主牌已放回牌堆";
         SetCurrentGameStatue(gamecontrol::GETLORD);
+        return;
 
     }
     if(Movetime<5)//移动的动画
@@ -520,6 +558,11 @@ void Maingame::PlayHandtimer(player * Player,int Movetime)
     else
     {
         Card* drawnCard = _Gamecontrol->TakeOneCard();
+        if(!drawnCard)
+        {
+            _Timer_PlayHand->stop();
+            return;
+        }
         Card tempCard(drawnCard->getcardsuit(), drawnCard->getcardpoint());  // 创建临时对象
         if(!_CardPenelMap.contains(tempCard)) {
             return;
@@ -628,8 +671,9 @@ void Maingame::PendCardpos(player* player) {
     QListcard sortedCards = cards.Listcardssort(player->GetRole() == player::LORD ? Cards::ASC : Cards::ASC);
     _Playercontext* context = _Playercontexts[player];
     QRect rect = context->_PLayerCardsRect;
-    QRect Panelrect;
-    const int cardSpace = 20; //对手手里面的牌进行显示
+    const int cardWidth = _IMage_Card_Size.width();
+    const int cardHeight = _IMage_Card_Size.height();
+    const int cardSpace = CalculateStackSpacing(rect.width(), cardWidth, sortedCards.size(), std::max(10, cardWidth / 3)); //对手手里面的牌进行显示
     if(context->_Align == Horizontal)
     {
         _PanelPositon.clear();
@@ -641,12 +685,13 @@ void Maingame::PendCardpos(player* player) {
 
         if(context->_Align == Horizontal) {
             const int raiseOffset = 10;
-            int leftX = rect.left() + (rect.width() - panel->width() - (sortedCards.size() - 1) * cardSpace) / 2;
-            int baseTop = rect.top() + (rect.height() - panel->height()) / 2;
+            const int stackWidth = cardWidth + std::max(0, sortedCards.size() - 1) * cardSpace;
+            int leftX = rect.left() + std::max(0, (rect.width() - stackWidth) / 2);
+            int baseTop = rect.top() + std::max(0, (rect.height() - cardHeight) / 2);
 
             _Mycardsrect = QRect(leftX, baseTop - raiseOffset,
-                                 (sortedCards.size() - 1) * cardSpace + panel->width(),
-                                 panel->height() + raiseOffset);
+                                 stackWidth,
+                                 cardHeight + raiseOffset);
 
             int topY = baseTop;
             if(panel->GetSelect())
@@ -655,7 +700,7 @@ void Maingame::PendCardpos(player* player) {
             }
             panel->move(leftX + i * cardSpace, topY);
             panel->setfront(true);//自己的牌要显示出来
-            QRect temp(leftX + i * cardSpace, topY, panel->width(), panel->height());
+            QRect temp(leftX + i * cardSpace, topY, cardWidth, cardHeight);
             _PanelPositon.insert(panel, temp);
         }
         else {
@@ -664,17 +709,17 @@ void Maingame::PendCardpos(player* player) {
                 panel->setfront(true);
             else
                 panel->setfront(false);
-            int leftX = rect.left() + (rect.width() - panel->width()) / 2;
-            int topY = rect.top() + (rect.height() - panel->height() - (sortedCards.size() - 1) * cardSpace) / 2;
-            panel->move(leftX, topY + i * cardSpace);
+            const int verticalSpace = CalculateStackSpacing(rect.height(), cardHeight, sortedCards.size(), std::max(10, cardHeight / 4));
+            const int stackHeight = cardHeight + std::max(0, sortedCards.size() - 1) * verticalSpace;
+            int leftX = rect.left() + std::max(0, (rect.width() - cardWidth) / 2);
+            int topY = rect.top() + std::max(0, (rect.height() - stackHeight) / 2);
+            panel->move(leftX, topY + i * verticalSpace);
 
         }
 
         panel->raise();//控件升至顶端
         panel->show();
     }
-
-    const int Playhandspace = 20;
 
     // 打出的牌 - 重要修复：只有当有有效出牌时才显示
     if(_Playercontexts.find(player).value()->_Last_Cards != nullptr &&
@@ -691,14 +736,18 @@ void Maingame::PendCardpos(player* player) {
                 tempPanel->setfront(true);
                 if(_Playercontexts.find(player).value()->_Align == Horizontal)//水平
                 {
-                    int x = (Location.width() - list.size() * Playhandspace - 1 + tempPanel->width()) / 2 + i * Playhandspace;
-                    int y = (Location.height() - tempPanel->height()) / 2;
+                    const int playSpacing = CalculateStackSpacing(Location.width(), cardWidth, list.size(), std::max(12, cardWidth / 3));
+                    const int stackWidth = cardWidth + std::max(0, list.size() - 1) * playSpacing;
+                    int x = std::max(0, (Location.width() - stackWidth) / 2) + i * playSpacing;
+                    int y = std::max(0, (Location.height() - cardHeight) / 2);
                     tempPanel->move(Location.left() + x-40, Location.top() + y);
                 }
                 else//竖直
                 {
-                    int x = (Location.width() - list.size() * Playhandspace - 1 + tempPanel->width()) / 2 + i * Playhandspace;
-                    int y = (Location.height() - tempPanel->height()) / 2;
+                    const int playSpacing = CalculateStackSpacing(Location.width(), cardWidth, list.size(), std::max(12, cardWidth / 3));
+                    const int stackWidth = cardWidth + std::max(0, list.size() - 1) * playSpacing;
+                    int x = std::max(0, (Location.width() - stackWidth) / 2) + i * playSpacing;
+                    int y = std::max(0, (Location.height() - cardHeight) / 2);
                     tempPanel->move(Location.left() - 50 + x, Location.top() + y + 50);
 
                 }
@@ -1288,6 +1337,33 @@ void Maingame::ClearRobotHands()
     }
 
     _RobotRevealPanels.clear();
+}
+
+int Maingame::CalculateStackSpacing(int availableSpan, int cardSpan, int cardCount, int preferredSpacing) const
+{
+    if(cardCount <= 1)
+    {
+        return 0;
+    }
+
+    const int safePreferred = std::max(1, preferredSpacing);
+    const int remaining = std::max(0, availableSpan - cardSpan);
+    const int spacing = remaining / (cardCount - 1);
+    return std::max(1, std::min(safePreferred, spacing));
+}
+
+QRect Maingame::ClampRectToWindow(const QRect &rect) const
+{
+    const QRect windowRect = this->rect();
+    const int maxWidth = std::max(1, windowRect.width());
+    const int maxHeight = std::max(1, windowRect.height());
+
+    QRect bounded = rect;
+    bounded.setWidth(std::min(rect.width(), maxWidth));
+    bounded.setHeight(std::min(rect.height(), maxHeight));
+    bounded.moveLeft(std::clamp(bounded.left(), windowRect.left(), windowRect.right() - bounded.width() + 1));
+    bounded.moveTop(std::clamp(bounded.top(), windowRect.top(), windowRect.bottom() - bounded.height() + 1));
+    return bounded;
 }
 void Maingame::RePlayGame()
 {
