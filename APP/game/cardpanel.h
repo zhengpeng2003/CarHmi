@@ -11,6 +11,7 @@ class CardPanel : public QWidget
 public:
     explicit CardPanel(QWidget *parent = nullptr);
     void setimage(const QPixmap& map_fornt, const QPixmap& map_back);
+    void setCardSize(const QSize &size);
 
     QPixmap getimage();
     QPixmap Getimagefont();

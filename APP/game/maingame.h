@@ -131,6 +131,8 @@ protected:
     void closeEvent(QCloseEvent *event) override;
 
 private:
+    int CalculateStackSpacing(int availableSpan, int cardSpan, int cardCount, int preferredSpacing) const;
+    QRect ClampRectToWindow(const QRect &rect) const;
     void SaveLastGameScores();
     QPoint _Base_point;
     QPixmap _IMage_Map;
@@ -145,7 +147,7 @@ private:
     QMap<player*,_Playercontext*> _Playercontexts;//卡牌在谁手上
     CardPanel *_PendCards;//发的牌
     CardPanel *_MoveCards;//移动牌
-    CardPanel *_LordCards[3];//地主牌
+    CardPanel *_LordCards[3]={nullptr, nullptr, nullptr};//地主牌
     QSet<CardPanel*> _SelcetPanel;//被选中的牌
     QHash<CardPanel *,QRect> _PanelPositon;
     CardPanel * _CurrtPanel;
