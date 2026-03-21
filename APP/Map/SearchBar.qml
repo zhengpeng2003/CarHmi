@@ -23,6 +23,11 @@ Rectangle {
         inputField.forceActiveFocus()
     }
 
+    function clearSearchUi() {
+        resultsModel = []
+        inputField.text = ""
+    }
+
     Column {
         id: content
         anchors.fill: parent
@@ -143,7 +148,10 @@ Rectangle {
                             width: 48
                             height: 24
                             text: "定位"
-                            onClicked: root.resultSelected(index)
+                            onClicked: {
+                                root.resultSelected(index)
+                                root.clearSearchUi()
+                            }
                         }
                     }
                 }

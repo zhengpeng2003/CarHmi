@@ -45,6 +45,7 @@ public:
     Q_INVOKABLE void searchPlace(const QString &keyword);
     Q_INVOKABLE void retryLastSearch();
     Q_INVOKABLE void confirmSearchResult(int index);
+    Q_INVOKABLE void clearSearchResults();
     Q_INVOKABLE void clearSearchHistory();
     Q_INVOKABLE void enterManualBrowse();
     Q_INVOKABLE void resumeGpsFollow();
