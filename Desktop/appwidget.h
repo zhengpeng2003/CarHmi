@@ -1,9 +1,7 @@
-// appwidget.h
 #pragma once
 #include <QWidget>
 #include <QLabel>
 #include <QVBoxLayout>
-#include <QMouseEvent>
 
 class AppWidget : public QWidget
 {
@@ -12,15 +10,10 @@ public:
     explicit AppWidget(QWidget *parent = nullptr);
 
     void setAppInfo(quint8 id, const QString &name, const QString &exePath, const QString &iconPath);
-
-signals:
-    void clicked(quint8 id); // 点击信号，传递 APP ID
-
-protected:
-    void mousePressEvent(QMouseEvent *event) override;
+    quint8 appId() const { return m_id; }
 
 private:
-    quint8 m_id;
+    quint8 m_id = 0;
     QString m_exePath;
 
     QLabel *iconLabel;

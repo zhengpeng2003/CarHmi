@@ -8,6 +8,7 @@
 #include <QMouseEvent>
 #include <QPropertyAnimation>
 #include <QProcess>
+#include <QPoint>
 
 #include "appwidget.h"
 #include "environmentwidget.h"
@@ -44,11 +45,18 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     void InitTestApps();
     AppInfo createApp(quint8 id, const QString &exeName, const QRect &rect);
     EnvironmentWidget* createEnvironmentPanel(const QRect &rect, double temp, double hum, const QString &bg);
+    bool handlePress(const QPoint &globalPos, AppWidget *appWidget);
+    bool handleMove(const QPoint &globalPos);
+    bool handleRelease(const QPoint &globalPos, AppWidget *appWidget);
+    const AppInfo *findAppInfo(quint8 id) const;
+    void snapToCurrentPage();
+    bool isInLeftArea(const QPoint &localPos) const;
 
 private:
     Ui::Widget *ui;
@@ -56,13 +64,18 @@ private:
     QVector<AppInfo> _AppInfos;
     EnvironmentWidget *_envPanel = nullptr;
 
-    // ⭐ 分页
     QWidget *leftContainer = nullptr;
     QVector<QWidget*> pages;
     int currentPage = 0;
 
     QPoint pressPos;
-    int startX;
+    int startX = 0;
+    bool isDragging = false;
+    AppWidget *pressedAppWidget = nullptr;
+
+    static constexpr int ClickThreshold = 16;
+    static constexpr int DragThreshold = 12;
+    static constexpr int PageSwitchThreshold = 60;
 };
 
 #endif

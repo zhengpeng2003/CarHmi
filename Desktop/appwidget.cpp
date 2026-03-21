@@ -1,7 +1,6 @@
 #include "appwidget.h"
 #include <QVBoxLayout>
 #include <QPainter>
-#include <QMouseEvent>
 
 AppWidget::AppWidget(QWidget *parent) : QWidget(parent)
 {
@@ -37,9 +36,4 @@ void AppWidget::setAppInfo(quint8 id, const QString &name, const QString &, cons
     painter.drawPixmap(0,0,src.scaled(80,80,Qt::KeepAspectRatio,Qt::SmoothTransformation));
 
     iconLabel->setPixmap(rounded);
-}
-
-void AppWidget::mousePressEvent(QMouseEvent *)
-{
-    emit clicked(m_id);
 }
