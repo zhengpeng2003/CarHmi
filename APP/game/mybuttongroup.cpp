@@ -32,8 +32,7 @@ void MybuttonGroup::Initbutton()
                  <<ui->pushButton_NO;
     for(int i=0;i<7;i++)
     {
-
-        GameScaling::applyFixedSize(_Pushbuttons.at(i), 90, 45);
+        GameScaling::applyFixedSize(_Pushbuttons.at(i), 96, 56);
     }
     //出牌
     connect(ui->pushButton_no,&QPushButton::clicked,this,&MybuttonGroup::S_NoHand);

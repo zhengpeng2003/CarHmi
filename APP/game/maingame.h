@@ -154,30 +154,32 @@ private:
     void SaveLastGameScores();
     void initializeWindowChrome();
     void initializeExitButton();
+    void applyDesignLayout();
+    void ensureLordCardPanels();
     QPoint _Base_point;
     QPixmap _IMage_Map;
     QPixmap _IMage_Cards;
     QPixmap _Card_back;
     QSize _IMage_Card_Size;
-    gamecontrol * _Gamecontrol;
+    gamecontrol * _Gamecontrol = nullptr;
     QVector<player*> _Players;//玩家
     QMap<Card,CardPanel*>_CardPenelMap;//卡牌的图片
     int _Movetime;
 
     QMap<player*,_Playercontext*> _Playercontexts;//卡牌在谁手上
-    CardPanel *_PendCards;//发的牌
-    CardPanel *_MoveCards;//移动牌
-    CardPanel *_LordCards[3];//地主牌
+    CardPanel *_PendCards = nullptr;//发的牌
+    CardPanel *_MoveCards = nullptr;//移动牌
+    CardPanel *_LordCards[3] = {nullptr, nullptr, nullptr};//地主牌
     QSet<CardPanel*> _SelcetPanel;//被选中的牌
     QHash<CardPanel *,QRect> _PanelPositon;
     CardPanel * _CurrtPanel;
     QRect _Mycardsrect;
-    QTimer *_Timer_PlayHand;
+    QTimer *_Timer_PlayHand = nullptr;
     Ui::Maingame *ui;
     QPoint _xy[3];
-    AnmationPixmap *_MyAnmation;
-    Timecount * _Timecount;
-    Bgmcontrol * _Bgmcontrol;
+    AnmationPixmap *_MyAnmation = nullptr;
+    Timecount * _Timecount = nullptr;
+    Bgmcontrol * _Bgmcontrol = nullptr;
     gamecontrol::GameState _CurrentGameState = gamecontrol::PENDCARD;
     bool _CanSelectCards = false;
     bool _IsUserFirstLordPlay = false;
@@ -190,6 +192,7 @@ private:
     int _LastLeftRobotScore = 0;
     int _LastRightRobotScore = 0;
     bool _SetupCompleted = false;
+    bool _GameLaunchPending = false;
     QSet<int> _CompletedStages;
     QPushButton *_ExitButton = nullptr;
 
