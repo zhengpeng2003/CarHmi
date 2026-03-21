@@ -1,0 +1,15 @@
+.vs/
+build-*
+*.pro.user
+
+# 编译输出
+build/
+*.pdb
+*.idb
+*.obj
+*.exe
+*.dll
+
+# Qt编译文件
+*.qrc.cpp
+*.qrc.d

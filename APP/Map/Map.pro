@@ -1,5 +1,4 @@
-QT += widgets quickwidgets quick positioning location network
-
+QT += core widgets quickwidgets quick positioning location network
 # ========== 平台路径配置 ==========
 # 通过外部变量 PLATFORM 来切换
 # 桌面环境: qmake
@@ -9,12 +8,12 @@ isEmpty(PLATFORM) {
 }
 
 
-    NMEA_PATH = /work/Qt_Object/maptest/nmealib_api/nmealib
-    message("Using desktop NMEA path")
+    #NMEA_PATH = /work/Qt_Object/maptest/nmealib_api/nmealib
+    #message("Using desktop NMEA path")
 
-    #NMEA_PATH = /work/Qt_Object/maptest/nmealib_api/nmelib_arm
-  # 改为你板子上的实际路径
-    #message("Using ARM board NMEA path")
+    NMEA_PATH = /work/Qt_Object/maptest/nmealib_api/nmelib_arm
+   #改为你板子上的实际路径#
+    message("Using ARM board NMEA path")
 
 
 INCLUDEPATH += $$NMEA_PATH/include

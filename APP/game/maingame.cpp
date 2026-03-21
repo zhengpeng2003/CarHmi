@@ -1361,8 +1361,12 @@ QRect Maingame::ClampRectToWindow(const QRect &rect) const
     QRect bounded = rect;
     bounded.setWidth(std::min(rect.width(), maxWidth));
     bounded.setHeight(std::min(rect.height(), maxHeight));
-    bounded.moveLeft(std::clamp(bounded.left(), windowRect.left(), windowRect.right() - bounded.width() + 1));
-    bounded.moveTop(std::clamp(bounded.top(), windowRect.top(), windowRect.bottom() - bounded.height() + 1));
+    // //bounded.moveLeft(std::clamp(bounded.left(), windowRect.left(), windowRect.right() - bounded.width() + 1));c10没有这个
+    // Maingame::ClampRectToWindow(const QRect&) const’:
+    //                                                         ../../maingame.cpp:1364:27: error: ‘clamp’ is not a member of ‘std’
+    //                                         bounded.moveLeft(std::clamp(bounded.left(), windowRect.left(), windowRect.right() - bounded.width() + 1));
+    // ^~~~~
+    //bounded.moveTop(std::clamp(bounded.top(), windowRect.top(), windowRect.bottom() - bounded.height() + 1));
     return bounded;
 }
 void Maingame::RePlayGame()

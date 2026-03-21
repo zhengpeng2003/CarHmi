@@ -13,6 +13,7 @@
 #include <QNetworkRequest>
 #include <QSettings>
 #include <QSslSocket>
+
 #include <QUrl>
 #include <QUrlQuery>
 #include <QtMath>
@@ -20,7 +21,6 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
-
 GPSManager::GPSManager(QObject *parent)
     : QObject(parent),
       networkManager(new QNetworkAccessManager(this))
@@ -89,20 +89,20 @@ void GPSManager::detectEnvironment()
     m_pluginAvailable = QGeoServiceProvider::availableServiceProviders().contains(m_config.pluginName);
     QNetworkConfigurationManager networkManager;
     m_networkAvailable = networkManager.isOnline();
-    m_sslAvailable = QSslSocket::supportsSsl();
+    //m_sslAvailable = QSslSocket::supportsSsl();
 
     QStringList issues;
     if (!m_pluginAvailable) {
-        issues << QStringLiteral("地图插件不可用: %1").arg(m_config.pluginName);
+        qDebug() << QStringLiteral("地图插件不可用: %1").arg(m_config.pluginName);
     }
     if (!m_networkAvailable) {
-        issues << QStringLiteral("网络未连接");
+        qDebug() << QStringLiteral("网络未连接");
     }
-    if (!m_sslAvailable) {
-        issues << QStringLiteral("SSL/OpenSSL 不可用，在线搜索将降级");
-    }
+    // if (!m_sslAvailable) {
+    //     issues << QStringLiteral("SSL/OpenSSL 不可用，在线搜索将降级");
+    // }
     if (m_config.apiKey.trimmed().isEmpty()) {
-        issues << QStringLiteral("缺少 API Key 配置");
+        qDebug() << QStringLiteral("缺少 API Key 配置");
     }
 
     m_environmentMessage = issues.isEmpty()
