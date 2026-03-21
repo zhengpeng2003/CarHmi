@@ -64,6 +64,8 @@ public:
         QLabel * _NOCardlabel;
         //角色标签
         QLabel * _ROlelabel;
+        //剩余牌数标签
+        QLabel * _CountLabel;
         //卡牌正反面
         bool Isfront;
         //卡牌
@@ -155,6 +157,8 @@ private:
     void initializeWindowChrome();
     void initializeExitButton();
     void applyDesignLayout();
+    void beginGameStartSequence();
+    void runGameStartStep(int step);
     void ensureLordCardPanels();
     QPoint _Base_point;
     QPixmap _IMage_Map;
@@ -193,6 +197,7 @@ private:
     int _LastRightRobotScore = 0;
     bool _SetupCompleted = false;
     bool _GameLaunchPending = false;
+    int _GameStartSequenceId = 0;
     QSet<int> _CompletedStages;
     QPushButton *_ExitButton = nullptr;
 
