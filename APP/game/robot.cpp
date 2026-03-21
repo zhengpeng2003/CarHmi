@@ -1,15 +1,18 @@
 ﻿#include "robot.h"
+#include <QTimer>
 
 void robot::PrepareGetLord()
 {
-    Robotgetloard* T1=new Robotgetloard(this,this);
-    T1->start();
+    QTimer::singleShot(1700, this, [this]() {
+        RobotGetLard();
+    });
 }
 
 void robot::PreparePlayCard()
 {
-    RobotPlayhand * T2=new RobotPlayhand(this,this);
-    T2->start();
+    QTimer::singleShot(1700, this, [this]() {
+        RobotThinkPlayhand();
+    });
 }
 
 void robot::RobotGetLard()
