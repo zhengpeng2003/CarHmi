@@ -89,28 +89,28 @@ void GPSManager::detectEnvironment()
     m_pluginAvailable = QGeoServiceProvider::availableServiceProviders().contains(m_config.pluginName);
     QNetworkConfigurationManager networkManager;
     m_networkAvailable = networkManager.isOnline();
-    //m_sslAvailable = QSslSocket::supportsSsl();
+    // 移除 SSL 检测，直接设为可用
+    m_sslAvailable = true;  // 强制设为 true，不使用 SSL 检测
 
     QStringList issues;
     if (!m_pluginAvailable) {
         qDebug() << QStringLiteral("地图插件不可用: %1").arg(m_config.pluginName);
+        issues << QStringLiteral("地图插件不可用: %1").arg(m_config.pluginName);
     }
     if (!m_networkAvailable) {
         qDebug() << QStringLiteral("网络未连接");
+        issues << QStringLiteral("网络未连接");
     }
-    // if (!m_sslAvailable) {
-    //     issues << QStringLiteral("SSL/OpenSSL 不可用，在线搜索将降级");
-    // }
     if (m_config.apiKey.trimmed().isEmpty()) {
         qDebug() << QStringLiteral("缺少 API Key 配置");
+        issues << QStringLiteral("缺少 API Key 配置");
     }
 
     m_environmentMessage = issues.isEmpty()
-            ? QStringLiteral("环境检测通过")
-            : issues.join(QStringLiteral("；"));
+                               ? QStringLiteral("环境检测通过")
+                               : issues.join(QStringLiteral("；"));
     emit environmentMessageChanged();
 }
-
 bool GPSManager::environmentReadyForSearch(QString *errorMessage) const
 {
     if (!m_networkAvailable) {
