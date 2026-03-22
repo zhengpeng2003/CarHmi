@@ -9,6 +9,7 @@
 #include <QPropertyAnimation>
 #include <QProcess>
 #include <QPoint>
+#include <QElapsedTimer>
 
 #include "appwidget.h"
 #include "environmentwidget.h"
@@ -71,7 +72,9 @@ private:
     QPoint pressPos;
     int startX = 0;
     bool isDragging = false;
+    bool launchInProgress = false;
     AppWidget *pressedAppWidget = nullptr;
+    QElapsedTimer launchCooldown;
 
     static constexpr int ClickThreshold = 16;
     static constexpr int DragThreshold = 12;

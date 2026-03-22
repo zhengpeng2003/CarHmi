@@ -10,13 +10,17 @@ public:
 
     void setTemperature(float temp) { m_temperature = temp; update(); }
     void setHumidity(float hum) { m_humidity = hum; update(); }
-    void setBackgroundImage(const QString &path) { m_bg.load(path); update(); }
+    void setBackgroundImage(const QString &path);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
+    void rebuildCache();
+
     float m_temperature = 0;
     float m_humidity = 0;
     QPixmap m_bg;
+    QPixmap m_cachedCarPixmap;
 };
