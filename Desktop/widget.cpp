@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QEvent>
+#include <QTimer>
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent), ui(new Ui::Widget)
@@ -247,37 +248,38 @@ bool Widget::StartApp(const AppInfo &appinfo)
 {
     const QString appDir = QCoreApplication::applicationDirPath();
     const QString scriptPath = appDir + "/app/run.sh";
-    const QString stateFile = appDir + "/tmp/desktop_state";
+
+    if (launchInProgress) {
+        qWarning() << "Ignore duplicated launch request while previous app handoff is still running:" << appinfo.Path;
+        return false;
+    }
+
+    if (launchCooldown.isValid() && launchCooldown.elapsed() < 800) {
+        qWarning() << "Ignore duplicated launch request during cooldown:" << appinfo.Path;
+        return false;
+    }
 
     if (!QFile::exists(scriptPath)) {
         qWarning() << "App launcher script missing:" << scriptPath;
         return false;
     }
 
-    QDir().mkpath(appDir + "/tmp");
-    QFile state(stateFile);
-    if (state.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-        state.write("app\n");
-        state.close();
-    } else {
-        qWarning() << "Unable to write desktop_state before starting app:" << stateFile;
-        return false;
-    }
+    launchInProgress = true;
+    setEnabled(false);
 
     const QStringList args{appinfo.Path};
     qDebug() << "Desktop launching app:" << appinfo.Path << "via" << scriptPath;
 
     if (!QProcess::startDetached(scriptPath, args)) {
         qWarning() << "Failed to start app launcher for" << appinfo.Path;
-        if (state.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-            state.write("desktop\n");
-            state.close();
-        }
+        launchInProgress = false;
+        setEnabled(true);
         return false;
     }
 
+    launchCooldown.restart();
     qDebug() << "Desktop exiting after handoff to app:" << appinfo.Path;
-    qApp->quit();
+    QTimer::singleShot(0, qApp, &QCoreApplication::quit);
     return true;
 }
 
