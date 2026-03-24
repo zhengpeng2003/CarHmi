@@ -12,6 +12,8 @@ MybuttonGroup::MybuttonGroup(QWidget *parent)
 
 void MybuttonGroup::Initbutton()
 {
+    setAttribute(Qt::WA_StyledBackground, true);
+    setStyleSheet("background: rgba(10, 24, 28, 82); border: 1px solid rgba(255,255,255,36); border-radius: 9px;");
     //出牌
 
     ui->pushButton_no->InitMybutton(":/images/pass_btn-1.png",":/images/pass_btn-2.png",":/images/pass_btn-3.png");
@@ -27,13 +29,15 @@ void MybuttonGroup::Initbutton()
     ui->pushButton_NO->InitMybutton(":/images/buqiang-1.png",":/images/buqiang-2.png",":/images/buqiang-3.png");
 
     _Pushbuttons<<ui->pushButton_no<<ui->pushButton_play<<ui->pushButton_start
-                 <<ui->pushButton_playfirst<<ui->pushButton_one<<ui->pushButton_three
-                 <<ui->pushButton_NO;
-    for(int i=0;i<7;i++)
+                 <<ui->pushButton_playfirst<<ui->pushButton_one<<ui->pushButton_two
+                 <<ui->pushButton_three<<ui->pushButton_NO;
+    for(int i=0;i<_Pushbuttons.size();i++)
     {
 
-        _Pushbuttons.at(i)->setFixedSize(90,45);
+        _Pushbuttons.at(i)->setFixedSize(48,28);
     }
+    ui->pushButton_start->setFixedSize(78, 30);
+    ui->pushButton_playfirst->setFixedSize(78, 30);
     //出牌
     connect(ui->pushButton_no,&QPushButton::clicked,this,&MybuttonGroup::S_NoHand);
     connect(ui->pushButton_play,&QPushButton::clicked,this,&MybuttonGroup::S_PlayHand);
@@ -66,7 +70,16 @@ void MybuttonGroup::Initbutton()
 
 void MybuttonGroup::Setbtngroupstate(State state)
 {
+    if(state == Null)
+    {
+        hide();
+        ui->stackedWidget->setCurrentIndex(state);
+        return;
+    }
+
     ui->stackedWidget->setCurrentIndex(state);
+    show();
+    raise();
 }
 
 void MybuttonGroup::SetStartButtonVisible(bool visible)
@@ -74,7 +87,22 @@ void MybuttonGroup::SetStartButtonVisible(bool visible)
     if(ui && ui->pushButton_start)
     {
         ui->pushButton_start->setVisible(visible);
+        if(visible)
+        {
+            show();
+        }
     }
+}
+
+void MybuttonGroup::SetPlayButtonEnabled(bool enabled)
+{
+    if(!ui)
+    {
+        return;
+    }
+
+    ui->pushButton_play->setEnabled(enabled);
+    ui->pushButton_playfirst->setEnabled(enabled);
 }
 
 MybuttonGroup::~MybuttonGroup()

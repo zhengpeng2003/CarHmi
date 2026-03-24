@@ -17,6 +17,7 @@ Bgmcontrol::Bgmcontrol(QWidget *parent)
         }
 
         _MPlayer.append(player);
+        _HasPlaybackBackend = _HasPlaybackBackend && player->isAvailable();
     }
 }
 
@@ -65,7 +66,15 @@ void Bgmcontrol::InitMusicPlayer()
         }
     }
 
-    if (root.contains("Result") && root["Result"].isObject()) {
+    if (root.contains("Ending") && root["Ending"].isArray()) {
+        QJsonArray endingArray = root["Ending"].toArray();
+        if (endingArray.size() > 0 && endingArray.at(0).isString()) {
+            _WinResult = endingArray.at(0).toString();
+        }
+        if (endingArray.size() > 1 && endingArray.at(1).isString()) {
+            _LoseResult = endingArray.at(1).toString();
+        }
+    } else if (root.contains("Result") && root["Result"].isObject()) {
         QJsonObject resultObj = root["Result"].toObject();
         _WinResult = resultObj.value("Win").toString();
         _LoseResult = resultObj.value("Lose").toString();
@@ -86,30 +95,32 @@ void Bgmcontrol::StartBgm()
     if (_Bgm.isEmpty()) return;
 
     QMediaPlayer *bgmPlayer = _MPlayer[2];
+    if (!_HasPlaybackBackend || !bgmPlayer || !bgmPlayer->isAvailable()) return;
 
-    static int index = 0;
-    QString bgmPath = _Bgm[index];
-
-    bgmPlayer->setMedia(QUrl(bgmPath));
-
+    disconnect(bgmPlayer, nullptr, this, nullptr);
     connect(bgmPlayer, static_cast<void(QMediaPlayer::*)(QMediaPlayer::State)>(&QMediaPlayer::stateChanged),
-            [=](QMediaPlayer::State state) {
-                if (state == QMediaPlayer::StoppedState) {
-                    index = (index + 1) % _Bgm.size();
-                    QString nextBgmPath = _Bgm[index];
-                    bgmPlayer->setMedia(QUrl(nextBgmPath));
+            this, [this, bgmPlayer](QMediaPlayer::State state) {
+                if (state == QMediaPlayer::StoppedState && !_Bgm.isEmpty()) {
+                    _CurrentBgmIndex = (_CurrentBgmIndex + 1) % _Bgm.size();
+                    bgmPlayer->setMedia(QUrl(_Bgm[_CurrentBgmIndex]));
                     bgmPlayer->play();
                 }
             });
 
+    if (bgmPlayer->state() == QMediaPlayer::PlayingState) return;
+
+    _CurrentBgmIndex = qBound(0, _CurrentBgmIndex, _Bgm.size() - 1);
+    const QString bgmPath = _Bgm[_CurrentBgmIndex];
+    bgmPlayer->setMedia(QUrl(bgmPath));
     bgmPlayer->play();
 }
 
 void Bgmcontrol::StopBgm()
 {
     QMediaPlayer *bgmPlayer = _MPlayer[2];
+    if (!bgmPlayer) return;
     bgmPlayer->stop();
-    bgmPlayer->disconnect();
+    disconnect(bgmPlayer, nullptr, this, nullptr);
 }
 
 void Bgmcontrol::StartEndBgm(bool isWin)
@@ -125,6 +136,7 @@ void Bgmcontrol::playResultBgm(bool isWin)
     if (endPath.isEmpty()) return;
 
     QMediaPlayer *endPlayer = _MPlayer[4];
+    if (!_HasPlaybackBackend || !endPlayer || !endPlayer->isAvailable()) return;
     endPlayer->stop();
     endPlayer->setPosition(0);
     endPlayer->setMedia(QUrl(endPath));
@@ -269,23 +281,33 @@ void Bgmcontrol::OtherBgm(OtherSound type)
     int index = static_cast<int>(type);
     if (index < 0 || index >= _Otherbgm.size()) return;
 
-    delete _MPlayer[3];
+    QMediaPlayer *otherPlayer = _MPlayer[3];
+    if (!_HasPlaybackBackend || !otherPlayer || !otherPlayer->isAvailable()) return;
 
-    QMediaPlayer *otherPlayer = new QMediaPlayer(this);
-    otherPlayer->setVolume(80);
-    _MPlayer[3] = otherPlayer;
+    if (_CurrentOtherIndex == index && otherPlayer->state() == QMediaPlayer::PlayingState) {
+        return;
+    }
+
+    disconnect(otherPlayer, nullptr, this, nullptr);
+    otherPlayer->stop();
+    otherPlayer->setPosition(0);
 
     QString soundPath = _Otherbgm[index];
     otherPlayer->setMedia(QUrl(soundPath));
+    _CurrentOtherIndex = index;
 
     connect(otherPlayer, static_cast<void(QMediaPlayer::*)(QMediaPlayer::Error)>(&QMediaPlayer::error),
-            [soundPath, type](QMediaPlayer::Error error) {
+            this, [this, soundPath, type](QMediaPlayer::Error error) {
+                Q_UNUSED(type);
                 qWarning() << "播放错误:" << error << soundPath;
+                if (error == QMediaPlayer::ServiceMissingError) {
+                    _HasPlaybackBackend = false;
+                }
             });
 
     if (type == OtherSound::DISPATCH) {
         connect(otherPlayer, static_cast<void(QMediaPlayer::*)(QMediaPlayer::State)>(&QMediaPlayer::stateChanged),
-                [otherPlayer](QMediaPlayer::State state) {
+                this, [otherPlayer](QMediaPlayer::State state) {
                     if (state == QMediaPlayer::StoppedState) {
                         otherPlayer->setPosition(0);
                         otherPlayer->play();
@@ -293,7 +315,7 @@ void Bgmcontrol::OtherBgm(OtherSound type)
                 });
     } else {
         connect(otherPlayer, static_cast<void(QMediaPlayer::*)(QMediaPlayer::State)>(&QMediaPlayer::stateChanged),
-                [otherPlayer](QMediaPlayer::State state) {
+                this, [otherPlayer](QMediaPlayer::State state) {
                     if (state == QMediaPlayer::StoppedState) {
                         otherPlayer->stop();
                     }
@@ -306,8 +328,10 @@ void Bgmcontrol::OtherBgm(OtherSound type)
 void Bgmcontrol::StopOtherBgm()
 {
     QMediaPlayer *otherPlayer = _MPlayer[3];
+    if (!otherPlayer) return;
     otherPlayer->stop();
-    otherPlayer->disconnect();
+    disconnect(otherPlayer, nullptr, this, nullptr);
+    _CurrentOtherIndex = -1;
 }
 
 void Bgmcontrol::GetlordBgm(int point, player::Sex sex, bool isfirst)
@@ -341,6 +365,7 @@ void Bgmcontrol::playSoundBySex(player::Sex sex, Sound soundIndex, const QString
     int playerIndex = (sex == player::Sex::MAN) ? 0 : 1;
     QMediaPlayer *player = _MPlayer[playerIndex];
     QList<QString> &soundList = (sex == player::Sex::MAN) ? _Manbgm : _Womanbgm;
+    if (!_HasPlaybackBackend || !player || !player->isAvailable()) return;
 
     int index = static_cast<int>(soundIndex);
 

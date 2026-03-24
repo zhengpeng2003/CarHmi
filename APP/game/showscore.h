@@ -14,6 +14,9 @@ class ShowScore : public QWidget
 public:
     explicit ShowScore(QWidget *parent = nullptr);
     void InitScore(int a,int b,int c);
+    void SetPhaseText(const QString &text);
+    void SetMultiplier(int value);
+    void SetLordText(const QString &text);
     ~ShowScore();
 
 private:

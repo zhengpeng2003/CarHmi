@@ -5,7 +5,11 @@
 CardPanel::CardPanel(QWidget *parent)
     : QWidget{parent},is_front(0),_Card(nullptr),_Player(nullptr),is_select(false)
 {
-    this->setFixedSize(50,70);
+    this->setFixedSize(20,10);
+    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_NoSystemBackground);
+    setAttribute(Qt::WA_TransparentForMouseEvents, false);
+    setMouseTracking(true);
 }
 
 void CardPanel::setimage(const QPixmap &map_fornt, const QPixmap &map_back)
@@ -24,11 +28,24 @@ void CardPanel::setimage(const QPixmap &map_fornt, const QPixmap &map_back)
 
 
 }
+void CardPanel::setPresentation(const QSize &panelSize, const QRect &drawRect)
+{
+    if(panelSize.isValid())
+    {
+        setFixedSize(panelSize);
+    }
+
+    const QRect fallback(QPoint(0, 0), size());
+    _DrawRect = drawRect.isValid() ? drawRect : fallback;
+    setMask(QRegion(_DrawRect));
+    update();
+}
+
 void CardPanel::setCardSize(const QSize &size)
 {
     if(size.isValid())
     {
-        setFixedSize(size);
+        setPresentation(size, QRect(QPoint(0, 0), size));
     }
 }
 QPixmap CardPanel::getimage()
@@ -93,15 +110,22 @@ bool CardPanel::GetSelect()
 }
 void CardPanel::paintEvent(QPaintEvent *event)
 {
+    Q_UNUSED(event);
     QPainter p1(this);
-    p1.drawPixmap(rect(),getimage());
+    p1.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    const QRect targetRect = _DrawRect.isValid() ? _DrawRect : rect();
+    p1.drawPixmap(targetRect, getimage());
 
 }
  void CardPanel::mousePressEvent(QMouseEvent *event)
  {
-
+    if(_DrawRect.isValid() && !_DrawRect.contains(event->pos()))
+    {
+        event->ignore();
+        return;
+    }
     emit S_Cardsselect(event->button());
-    return QWidget::mousePressEvent(event);
+    event->accept();
  }
 
 

@@ -20,6 +20,7 @@ public:
     void Initbutton();
     void Setbtngroupstate(MybuttonGroup::State state);
     void SetStartButtonVisible(bool visible);
+    void SetPlayButtonEnabled(bool enabled);
     ~MybuttonGroup();
 signals:
     void S_Point(int point);

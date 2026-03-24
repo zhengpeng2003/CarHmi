@@ -6,6 +6,7 @@
 #include "cardpanel.h"
 #include <QMainWindow>
 #include <mybuttongroup.h>
+#include <mybutton.h>
 #include <QPixmap>
 #include <QPainter>
 #include <QRandomGenerator>
@@ -50,6 +51,8 @@ public:
         QLabel * _NOCardlabel;
         //角色标签
         QLabel * _ROlelabel;
+        // 手牌数量标签
+        QLabel * _CountLabel;
         //卡牌正反面
         bool Isfront;
         //卡牌
@@ -58,6 +61,23 @@ public:
         cardAlign _Align;
         //存储最后一张出的牌
         Cards *_Last_Cards=new Cards;
+    };
+    struct LayoutZones
+    {
+        QRect tableRect;
+        QRect centerBoardRect;
+        QRect userHandRect;
+        QRect actionBarRect;
+        QRect startPanelRect;
+        QRect lordCardsRect;
+        QRect countdownRect;
+        QRect leftCompactRect;
+        QRect rightCompactRect;
+        QRect leftPlayRect;
+        QRect rightPlayRect;
+        QRect centerPlayRect;
+        QPoint roleAnchors[3];
+        QPoint infoAnchors[3];
     };
     Maingame(QWidget *parent = nullptr);
     //游戏控制类的连接
@@ -134,36 +154,57 @@ private:
     int CalculateStackSpacing(int availableSpan, int cardSpan, int cardCount, int preferredSpacing) const;
     QRect ClampRectToWindow(const QRect &rect) const;
     void SaveLastGameScores();
+    void InitUiLayers();
+    void InitStartOverlay();
+    void ShowStartOverlay(bool visible);
+    void UpdateHudState(const QString &phaseText);
+    QString PlayerShortName(player *player) const;
+    LayoutZones BuildLayoutZones() const;
+    void ApplyLayoutZones();
+    void RefreshPlayerPanels(player *player);
+    void FlushPendingLayouts();
+    void UpdateUserActionUi();
+    QPixmap ScalePixmapToFit(const QPixmap &pixmap, const QSize &maxSize) const;
     QPoint _Base_point;
     QPixmap _IMage_Map;
     QPixmap _IMage_Cards;
     QPixmap _Card_back;
     QSize _IMage_Card_Size;
-    gamecontrol * _Gamecontrol;
+    gamecontrol * _Gamecontrol = nullptr;
     QVector<player*> _Players;//玩家
     QMap<Card,CardPanel*>_CardPenelMap;//卡牌的图片
-    int _Movetime;
+    int _Movetime = 0;
 
     QMap<player*,_Playercontext*> _Playercontexts;//卡牌在谁手上
-    CardPanel *_PendCards;//发的牌
-    CardPanel *_MoveCards;//移动牌
+    CardPanel *_PendCards = nullptr;//发的牌
+    CardPanel *_MoveCards = nullptr;//移动牌
     CardPanel *_LordCards[3]={nullptr, nullptr, nullptr};//地主牌
     QSet<CardPanel*> _SelcetPanel;//被选中的牌
     QHash<CardPanel *,QRect> _PanelPositon;
     CardPanel * _CurrtPanel;
     QRect _Mycardsrect;
-    QTimer *_Timer_PlayHand;
+    QTimer *_Timer_PlayHand = nullptr;
+    QTimer *_DispatchLayoutTimer = nullptr;
     Ui::Maingame *ui;
+    LayoutZones _LayoutZones;
     QPoint _xy[3];
-    AnmationPixmap *_MyAnmation;
-    Timecount * _Timecount;
-    Bgmcontrol * _Bgmcontrol;
+    AnmationPixmap *_MyAnmation = nullptr;
+    Timecount * _Timecount = nullptr;
+    Bgmcontrol * _Bgmcontrol = nullptr;
+    QWidget *_StartOverlay = nullptr;
+    QWidget *_StartPanel = nullptr;
+    QLabel *_StartTitle = nullptr;
+    QLabel *_StartSubtitle = nullptr;
+    Mybutton *_StartButton = nullptr;
     gamecontrol::GameState _CurrentGameState = gamecontrol::PENDCARD;
     bool _CanSelectCards = false;
     bool _IsUserFirstLordPlay = false;
     bool _IsDraggingSelect = false;
     int _InfoLabelSeq = 0;
     QList<CardPanel*> _RobotRevealPanels;
+    QSet<player*> _PendingLayoutPlayers;
+    bool _IsDispatchBatching = false;
+    int _DispatchCardsSinceLastLayout = 0;
 
     // 记录上一局的最终分数
     int _LastUserScore = 0;

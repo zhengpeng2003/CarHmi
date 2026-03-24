@@ -4,7 +4,7 @@
 Timecount::Timecount(QWidget *parent)
     : QWidget{parent}
 {
-    this->setFixedSize(70,70);
+    this->setFixedSize(44,44);
 
     _Timer = new QTimer(this);
     connect(_Timer, &QTimer::timeout, this, [=](){
@@ -12,7 +12,7 @@ Timecount::Timecount(QWidget *parent)
         if(count < 10 && count > 0)
         {
             _BgPix.load(":/images/clock.png");
-            _Number = QPixmap(":/images/number.png").copy(count * 40, 0, 30, 42).scaled(20, 30);
+            _Number = QPixmap(":/images/number.png").copy(count * 40, 0, 30, 42).scaled(12, 18, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         }
         if(count == 5)
         {
@@ -61,6 +61,7 @@ void Timecount::Timeout()
 
 void Timecount::paintEvent(QPaintEvent *event)
 {
+    Q_UNUSED(event);
     QPainter painter(this);
 
     // 启用高质量渲染
@@ -76,6 +77,8 @@ void Timecount::paintEvent(QPaintEvent *event)
     // 绘制数字
     if(!_Number.isNull())
     {
-        painter.drawPixmap(24, 24, _Number);
+        const int x = (width() - _Number.width()) / 2;
+        const int y = (height() - _Number.height()) / 2;
+        painter.drawPixmap(x, y, _Number);
     }
 }

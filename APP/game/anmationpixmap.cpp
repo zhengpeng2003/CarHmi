@@ -2,10 +2,13 @@
 
 AnmationPixmap::AnmationPixmap(QWidget *parent)
     :QWidget{parent}, _Timer(new QTimer(this)), _count(0), _Mx(0)
-{}
+{
+    setAttribute(Qt::WA_TransparentForMouseEvents, true);
+}
 
 void AnmationPixmap::ShowBet(int Bet)
 {
+    _Mx = 0;
     if(Bet <= 0)
     {
         _Mypix.load(":/images/buqinag.png");
@@ -23,6 +26,7 @@ void AnmationPixmap::ShowBet(int Bet)
         _Mypix.load(":/images/score3.png");
 
     }
+    FitPixmapToWidget();
 
     update();
 }
@@ -33,6 +37,7 @@ void AnmationPixmap::ShowSimsqe(PlayHand::HandType type)
     _Mx=0;
     QString name= type==PlayHand::Hand_Seq_Pair ?":/images/liandui.png":":/images/shunzi.png";
     _Mypix.load(name);
+    FitPixmapToWidget();
     // qDebug()<<name;
     update();
     QTimer::singleShot(2000,this,&AnmationPixmap::hide);
@@ -51,11 +56,13 @@ void AnmationPixmap::ShowBom(PlayHand::HandType type)
         {
             QString name=QString(":/images/bomb_%1.png").arg(_count);
             _Mypix.load(name);
+            FitPixmapToWidget();
         }
         else if(Number==8&&_count<Number)
         {
             QString name=QString(":/images/joker_bomb_%1.png").arg(_count);
             _Mypix.load(name);
+            FitPixmapToWidget();
         }
         else
         {
@@ -78,9 +85,10 @@ void AnmationPixmap::ShowPlane()
     // 立即显示第一张图片
     QString name = QString(":/images/plane_%1.png").arg(_count);
     _Mypix.load(name);
+    FitPixmapToWidget();
     update();
     connect(_Timer, &QTimer::timeout, this, [=]() mutable {
-        _Mx -= 10;  // 移动速度
+        _Mx -= 8;  // 移动速度
 
         // 每移动100像素切换一张图片
         int distanceMoved = width() - _Mx;
@@ -91,6 +99,7 @@ void AnmationPixmap::ShowPlane()
             _count = frameToShow;
             QString name = QString(":/images/plane_%1.png").arg(_count);
             _Mypix.load(name);
+            FitPixmapToWidget();
         }
 
         // 飞出屏幕后停止
@@ -110,6 +119,30 @@ void AnmationPixmap::ShowPlane()
 
 void AnmationPixmap::paintEvent(QPaintEvent *event)
 {
+    Q_UNUSED(event);
     QPainter Painter(this);
-    Painter.drawPixmap(_Mx,0,_Mypix);
+    if(_Mypix.isNull())
+    {
+        return;
+    }
+
+    const int drawY = (height() - _Mypix.height()) / 2;
+    if(_Mx == 0)
+    {
+        const int drawX = (width() - _Mypix.width()) / 2;
+        Painter.drawPixmap(drawX, drawY, _Mypix);
+    }
+    else
+    {
+        Painter.drawPixmap(_Mx, drawY, _Mypix);
+    }
+}
+
+void AnmationPixmap::FitPixmapToWidget()
+{
+    if(_Mypix.isNull() || width() <= 0 || height() <= 0)
+    {
+        return;
+    }
+    _Mypix = _Mypix.scaled(size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
 }

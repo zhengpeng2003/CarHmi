@@ -13,7 +13,7 @@ void Mybutton::InitMybutton(QString Norlmal, QString Hover, QString Click)
     _Hover=Hover;
     _Click=Click;
     _Pixmap.load(_Norlmal);
-    this->setIconSize(QSize(90,45));
+    this->setIconSize(size().isValid() ? size() : QSize(90,45));
     this->setIcon(_Pixmap);
 
     // 关键：设置透明背景和无边框
@@ -28,7 +28,7 @@ void Mybutton::InitMybutton(QString Norlmal, QString Hover, QString Click)
 void Mybutton::SetNormal()
 {
     _Pixmap.load(_Norlmal);
-    this->setIconSize(QSize(90,45));
+    this->setIconSize(size().isValid() ? size() : QSize(90,45));
     this->setIcon(_Pixmap);
 
 
@@ -37,7 +37,7 @@ void Mybutton::SetNormal()
 void Mybutton::SetHover()
 {
      _Pixmap.load(_Hover);
-    this->setIconSize(QSize(90,45));
+    this->setIconSize(size().isValid() ? size() : QSize(90,45));
     this->setIcon(_Pixmap);
 
 
@@ -46,7 +46,7 @@ void Mybutton::SetHover()
 void Mybutton::SetClick()
 {
     _Pixmap.load(_Click);
-    this->setIconSize(QSize(90,45));
+    this->setIconSize(size().isValid() ? size() : QSize(90,45));
     this->setIcon(_Pixmap);
 
 
@@ -64,6 +64,7 @@ bool Mybutton::event(QEvent *e)
         else
         {
         SetNormal();
+        break;
         }
         case QEvent::Enter:
         SetHover();break;
@@ -74,4 +75,10 @@ bool Mybutton::event(QEvent *e)
     }
 
     return   QPushButton::event(e);
+}
+
+void Mybutton::resizeEvent(QResizeEvent *event)
+{
+    QPushButton::resizeEvent(event);
+    setIconSize(size());
 }

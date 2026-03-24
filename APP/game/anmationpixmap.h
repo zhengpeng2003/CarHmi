@@ -19,6 +19,7 @@ public:
 protected:
     virtual void paintEvent(QPaintEvent *event)override;
 private:
+    void FitPixmapToWidget();
     QPixmap _Mypix;
     QTimer *_Timer;
     int _count=0;

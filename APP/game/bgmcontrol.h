@@ -68,6 +68,9 @@ private:
     QList<QString> _Otherbgm;
     QString _WinResult;
     QString _LoseResult;
+    bool _HasPlaybackBackend = true;
+    int _CurrentBgmIndex = 0;
+    int _CurrentOtherIndex = -1;
 };
 
 #endif // BGMCONTROL_H

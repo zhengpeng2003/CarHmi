@@ -12,6 +12,7 @@ public:
     explicit CardPanel(QWidget *parent = nullptr);
     void setimage(const QPixmap& map_fornt, const QPixmap& map_back);
     void setCardSize(const QSize &size);
+    void setPresentation(const QSize &panelSize, const QRect &drawRect);
 
     QPixmap getimage();
     QPixmap Getimagefont();
@@ -37,6 +38,7 @@ private:
     player *_Player;
     QPixmap _Map_front;
     QPixmap _Map_back;
+    QRect _DrawRect;
     bool is_select;
     bool is_front;
 
