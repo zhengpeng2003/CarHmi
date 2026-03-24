@@ -25,6 +25,8 @@ private:
     bool m_nightMode;
     bool m_paused;
     QString m_distanceText;
+    qreal m_scanProgress;
+    qreal m_glowStrength;
 };
 
 #endif // VIDEOWIDGET_H

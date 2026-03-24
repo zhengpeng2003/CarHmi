@@ -58,6 +58,7 @@ private:
     void setupRadarArea();
     void setupBottomButtons();
     void setupRecordButtons();
+    void playIntroAnimation();
 
     void resetFrameParser();
     void processIncomingData();
@@ -108,6 +109,7 @@ private:
     int m_frameCounter;
     int m_currentFps;
     bool m_started;
+    bool m_introPlayed;
     bool m_recording;
     bool m_paused;
     bool m_nightMode;
