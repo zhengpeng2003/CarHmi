@@ -12,6 +12,8 @@ STATE_TMP_FILE="$TMP_DIR/desktop_state.tmp"
 DESKTOP_BIN="$APP_DIR/Desktop"
 PID_FILE="$TMP_DIR/desktop.pid"
 LOCK_FILE="$TMP_DIR/desktop.lock"
+APP_READY_FILE="$TMP_DIR/app_launch_ready"
+APP_FAILED_FILE="$TMP_DIR/app_launch_failed"
 LOG_TAG="[root-run]"
 
 mkdir -p "$TMP_DIR"
@@ -47,6 +49,10 @@ write_state() {
     log "desktop_state => $1"
 }
 
+clear_launch_markers() {
+    rm -f "$APP_READY_FILE" "$APP_FAILED_FILE"
+}
+
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
     log "错误：另一个桌面启动器实例已在运行"
@@ -64,11 +70,13 @@ printf '%s\n' "$BASHPID" > "$PID_FILE"
 
 cleanup() {
     rm -f "$PID_FILE" "$STATE_TMP_FILE"
+    clear_launch_markers
 }
 trap cleanup EXIT INT TERM
 
 log "Qt 微桌面系统启动 (PID: $BASHPID)"
 setup_runtime_env
+clear_launch_markers
 
 RESTART_COUNT=0
 MAX_RESTART=10
@@ -118,6 +126,7 @@ while [ $RESTART_COUNT -lt $MAX_RESTART ]; do
     RESTART_COUNT=$((RESTART_COUNT + 1))
     log "启动 Desktop，第 ${RESTART_COUNT} 次"
     write_state "desktop"
+    clear_launch_markers
     "$DESKTOP_BIN"
     DESKTOP_EXIT=$?
 
