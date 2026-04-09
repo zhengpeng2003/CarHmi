@@ -1,314 +1,423 @@
 #include "widget.h"
-#include "ui_widget.h"
-#include <QDir>
-#include <QFile>
-#include <QDebug>
+
 #include <QApplication>
 #include <QCoreApplication>
-#include <QEvent>
+#include <QDir>
+#include <QFile>
+#include <QImage>
+#include <QPainter>
+#include <QPainterPath>
+#include <QProcess>
+#include <QQmlContext>
+#include <QResizeEvent>
 #include <QTimer>
+#include <QUrl>
 
 Widget::Widget(QWidget *parent)
-    : QWidget(parent), ui(new Ui::Widget)
+    : QWidget(parent)
 {
-    ui->setupUi(this);
+    resize(480, 272);
+    setAutoFillBackground(true);
+    setStyleSheet(QStringLiteral("background:white;"));
 
-    resize(480,272);
-    InitTestApps();
+    m_selectionResetTimer = new QTimer(this);
+    m_selectionResetTimer->setSingleShot(true);
+    connect(m_selectionResetTimer, &QTimer::timeout, this, &Widget::clearSelectedApp);
+
+    m_launchReadyPollTimer = new QTimer(this);
+    m_launchReadyPollTimer->setInterval(LaunchReadyPollIntervalMs);
+    connect(m_launchReadyPollTimer, &QTimer::timeout, this, &Widget::checkLaunchReady);
+
+    QDir().mkpath(runtimeTmpDir());
+    m_carImageSource = prepareCarImage();
+
+    initTestApps();
+    initQuickUi();
 }
 
-Widget::~Widget()
+int Widget::pageCount() const
 {
-    delete ui;
+    return (m_appInfos.size() + AppsPerPage - 1) / AppsPerPage;
 }
 
-void Widget::InitTestApps()
+int Widget::currentPage() const
 {
-    _AppInfos.clear();
-
-    QVector<QRect> rects = calcAppRects(width()/2, height());
-
-    createApp(1, "game", rects[0]);
-    createApp(2, "music", rects[1]);
-    createApp(3, "album", rects[2]);
-    createApp(4, "setting", rects[3]);
-    createApp(5, "map", rects[0]);
-
-    int rightX = width()/2;
-    QRect rightRect(rightX + 5, 5, width() - rightX - 10, height() - 10);
-
-    _envPanel = createEnvironmentPanel(rightRect, 26.3, 58, ":/images/car.png");
+    return m_currentPage;
 }
 
-AppInfo Widget::createApp(quint8 id, const QString &exeName, const QRect &rect)
+int Widget::selectedAppId() const
 {
-    QString name, log;
-    QString exeFileName = exeName.toLower();
-
-    if (exeFileName.contains("game")) {
-        name = "游戏"; log = ":/images/game.jpg";
-    } else if (exeFileName.contains("music")) {
-        name = "音乐"; log = ":/images/music.png";
-    } else if (exeFileName.contains("album")) {
-        name = "相册"; log = ":/images/album.png";
-    } else if (exeFileName.contains("map")) {
-        name = "地图"; log = ":/images/map.png";
-    } else {
-        name = "设置"; log = ":/images/default.png";
-    }
-
-    AppInfo info(id, name, exeName, log);
-    _AppInfos.append(info);
-
-    int perPage = 4;
-    int index = _AppInfos.size() - 1;
-    int pageIndex = index / perPage;
-
-    int leftW = width()/2;
-    int leftH = height();
-
-    if (!leftContainer)
-    {
-        leftContainer = new QWidget(this);
-        leftContainer->setGeometry(0, 0, leftW, leftH);
-    }
-
-    if (pageIndex >= pages.size())
-    {
-        QWidget *page = new QWidget(leftContainer);
-        page->setGeometry(pageIndex * leftW, 0, leftW, leftH);
-        pages.append(page);
-
-        leftContainer->resize(pages.size() * leftW, leftH);
-    }
-
-    QWidget *page = pages[pageIndex];
-
-    AppWidget *w = new AppWidget(page);
-    w->setAppInfo(info.Id, info.Name, info.Path, info.Log);
-    w->setGeometry(rect);
-    w->installEventFilter(this);
-    w->show();
-
-    return info;
+    return m_selectedAppId;
 }
 
-bool Widget::handlePress(const QPoint &globalPos, AppWidget *appWidget)
+double Widget::temperature() const
 {
-    const QPoint localPos = mapFromGlobal(globalPos);
-    if (!isInLeftArea(localPos)) {
-        return false;
-    }
-
-    pressPos = localPos;
-    startX = leftContainer ? leftContainer->x() : 0;
-    isDragging = false;
-    pressedAppWidget = appWidget;
-    return true;
+    return m_temperature;
 }
 
-bool Widget::handleMove(const QPoint &globalPos)
+double Widget::humidity() const
 {
-    if (!leftContainer) {
-        return false;
-    }
-
-    const QPoint localPos = mapFromGlobal(globalPos);
-    if (!isInLeftArea(localPos) && !pressedAppWidget) {
-        return false;
-    }
-
-    const QPoint delta = localPos - pressPos;
-    if (!isDragging && delta.manhattanLength() >= DragThreshold) {
-        isDragging = true;
-    }
-
-    if (!isDragging) {
-        return pressedAppWidget != nullptr;
-    }
-
-    int newX = startX + delta.x();
-    const int minX = qMin(0, -(leftContainer->width() - width()/2));
-
-    if(newX > 0) newX = 0;
-    if(newX < minX) newX = minX;
-
-    leftContainer->move(newX, 0);
-    return true;
+    return m_humidity;
 }
 
-bool Widget::handleRelease(const QPoint &globalPos, AppWidget *appWidget)
+bool Widget::loadingVisible() const
 {
-    if (!leftContainer) {
-        return false;
-    }
-
-    const QPoint localPos = mapFromGlobal(globalPos);
-    const QPoint delta = localPos - pressPos;
-    const bool isClick = !isDragging && delta.manhattanLength() <= ClickThreshold;
-
-    if (isClick && pressedAppWidget && appWidget == pressedAppWidget) {
-        if (const AppInfo *info = findAppInfo(pressedAppWidget->appId())) {
-            qDebug() << "Desktop click confirmed, start app:" << info->Path;
-            pressedAppWidget = nullptr;
-            return StartApp(*info);
-        }
-    }
-
-    if (isDragging || qAbs(delta.x()) >= PageSwitchThreshold) {
-        if(delta.x() > PageSwitchThreshold && currentPage > 0)
-            currentPage--;
-        else if(delta.x() < -PageSwitchThreshold && currentPage < pages.size()-1)
-            currentPage++;
-    }
-
-    pressedAppWidget = nullptr;
-    snapToCurrentPage();
-    return isInLeftArea(localPos);
+    return m_loadingVisible;
 }
 
-const AppInfo *Widget::findAppInfo(quint8 id) const
+QString Widget::loadingAppName() const
 {
-    for (const AppInfo &info : _AppInfos) {
-        if (info.Id == id) {
-            return &info;
-        }
-    }
-    return nullptr;
+    return m_loadingAppName;
 }
 
-void Widget::snapToCurrentPage()
+QString Widget::carImageSource() const
 {
-    if (!leftContainer) {
+    return m_carImageSource;
+}
+
+int Widget::appCount() const
+{
+    return m_appInfos.size();
+}
+
+QVariantMap Widget::appAt(int index) const
+{
+    if (index < 0 || index >= m_appInfos.size()) {
+        return {
+            {QStringLiteral("valid"), false}
+        };
+    }
+
+    const AppInfo &info = m_appInfos.at(index);
+    return {
+        {QStringLiteral("valid"), true},
+        {QStringLiteral("id"), info.Id},
+        {QStringLiteral("name"), info.Name},
+        {QStringLiteral("path"), info.Path},
+        {QStringLiteral("iconPath"), info.Log}
+    };
+}
+
+void Widget::appClicked(int appId)
+{
+    if (m_launchInProgress || appId < 0) {
         return;
     }
 
-    int targetX = -currentPage * (width()/2);
-
-    QPropertyAnimation *anim = new QPropertyAnimation(leftContainer, "pos");
-    anim->setDuration(250);
-    anim->setEasingCurve(QEasingCurve::OutCubic);
-    anim->setEndValue(QPoint(targetX, 0));
-    anim->start(QAbstractAnimation::DeleteWhenStopped);
-}
-
-bool Widget::isInLeftArea(const QPoint &localPos) const
-{
-    return localPos.x() >= 0 && localPos.x() <= width()/2;
-}
-
-void Widget::mousePressEvent(QMouseEvent *event)
-{
-    handlePress(event->globalPos(), nullptr);
-}
-
-void Widget::mouseMoveEvent(QMouseEvent *event)
-{
-    handleMove(event->globalPos());
-}
-
-void Widget::mouseReleaseEvent(QMouseEvent *event)
-{
-    handleRelease(event->globalPos(), nullptr);
-}
-
-bool Widget::eventFilter(QObject *watched, QEvent *event)
-{
-    AppWidget *appWidget = qobject_cast<AppWidget *>(watched);
-    if (!appWidget) {
-        return QWidget::eventFilter(watched, event);
+    if (m_selectedAppId == appId && m_selectionResetTimer->isActive()) {
+        if (const AppInfo *info = findAppInfo(appId)) {
+            clearSelectedApp();
+            StartApp(*info);
+        }
+        return;
     }
 
-    switch (event->type()) {
-    case QEvent::MouseButtonPress:
-        return handlePress(static_cast<QMouseEvent *>(event)->globalPos(), appWidget);
-    case QEvent::MouseMove:
-        return handleMove(static_cast<QMouseEvent *>(event)->globalPos());
-    case QEvent::MouseButtonRelease:
-        return handleRelease(static_cast<QMouseEvent *>(event)->globalPos(), appWidget);
-    default:
-        break;
-    }
-
-    return QWidget::eventFilter(watched, event);
+    selectAppById(appId);
 }
 
-EnvironmentWidget* Widget::createEnvironmentPanel(const QRect &rect, double temp, double hum, const QString &bg)
+void Widget::pageChanged(int pageIndex)
 {
-    EnvironmentWidget *env = new EnvironmentWidget(this);
-    env->setGeometry(rect);
-    env->setTemperature(temp);
-    env->setHumidity(hum);
-    env->setBackgroundImage(bg);
-    env->show();
-    return env;
+    clearSelectedApp();
+    setCurrentPageInternal(pageIndex);
+}
+
+void Widget::clearSelectionFromQml()
+{
+    clearSelectedApp();
+}
+
+void Widget::initQuickUi()
+{
+    m_quickWidget = new QQuickWidget(this);
+    m_quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    m_quickWidget->setClearColor(Qt::white);
+    m_quickWidget->rootContext()->setContextProperty(QStringLiteral("widgetController"), this);
+    m_quickWidget->setSource(QUrl(QStringLiteral("qrc:/qml/main.qml")));
+    layoutQuickUi();
+}
+
+void Widget::layoutQuickUi()
+{
+    if (m_quickWidget) {
+        m_quickWidget->setGeometry(rect());
+    }
+}
+
+void Widget::initTestApps()
+{
+    m_appInfos.clear();
+    m_appInfos
+        << createAppInfo(1, QStringLiteral("game"))
+        << createAppInfo(2, QStringLiteral("music"))
+        << createAppInfo(3, QStringLiteral("album"))
+        << createAppInfo(4, QStringLiteral("setting"))
+        << createAppInfo(5, QStringLiteral("map"))
+        << createAppInfo(6, QStringLiteral("RearCam"));
+
+    emit pageCountChanged();
+}
+
+AppInfo Widget::createAppInfo(quint8 id, const QString &exeName) const
+{
+    QString name;
+    QString iconResourcePath;
+    const QString exeFileName = exeName.toLower();
+
+    if (exeFileName.contains(QStringLiteral("game"))) {
+        name = QStringLiteral("游戏");
+        iconResourcePath = QStringLiteral(":/images/game.jpg");
+    } else if (exeFileName.contains(QStringLiteral("music"))) {
+        name = QStringLiteral("音乐");
+        iconResourcePath = QStringLiteral(":/images/music.png");
+    } else if (exeFileName.contains(QStringLiteral("album"))) {
+        name = QStringLiteral("相册");
+        iconResourcePath = QStringLiteral(":/images/album.png");
+    } else if (exeFileName.contains(QStringLiteral("map"))) {
+        name = QStringLiteral("地图");
+        iconResourcePath = QStringLiteral(":/images/map.png");
+    } else if (exeFileName.contains(QStringLiteral("rearcam"))) {
+        name = QStringLiteral("摄像");
+        iconResourcePath = QStringLiteral(":/images/RearCam.png");
+    } else {
+        name = QStringLiteral("设置");
+        iconResourcePath = QStringLiteral(":/images/default.png");
+    }
+
+    return AppInfo(id, name, exeName, iconSourceForQml(iconResourcePath, id));
+}
+
+const AppInfo *Widget::findAppInfo(int appId) const
+{
+    for (const AppInfo &info : m_appInfos) {
+        if (info.Id == appId) {
+            return &info;
+        }
+    }
+
+    return nullptr;
+}
+
+void Widget::selectAppById(int appId)
+{
+    setSelectedAppIdInternal(appId);
+    m_selectionResetTimer->start(SelectionConfirmTimeoutMs);
+}
+
+void Widget::clearSelectedApp()
+{
+    m_selectionResetTimer->stop();
+    setSelectedAppIdInternal(-1);
+}
+
+void Widget::setCurrentPageInternal(int pageIndex)
+{
+    const int bounded = qBound(0, pageIndex, qMax(0, pageCount() - 1));
+    if (m_currentPage == bounded) {
+        return;
+    }
+
+    m_currentPage = bounded;
+    emit currentPageChanged();
+}
+
+void Widget::setSelectedAppIdInternal(int appId)
+{
+    if (m_selectedAppId == appId) {
+        return;
+    }
+
+    m_selectedAppId = appId;
+    emit selectedAppIdChanged();
+}
+
+void Widget::setLoadingVisible(bool visible)
+{
+    if (m_loadingVisible == visible) {
+        return;
+    }
+
+    m_loadingVisible = visible;
+    emit loadingVisibleChanged();
+}
+
+void Widget::setLoadingAppName(const QString &appName)
+{
+    if (m_loadingAppName == appName) {
+        return;
+    }
+
+    m_loadingAppName = appName;
+    emit loadingAppNameChanged();
 }
 
 bool Widget::StartApp(const AppInfo &appinfo)
 {
     const QString appDir = QCoreApplication::applicationDirPath();
-    const QString scriptPath = appDir + "/app/run.sh";
+    const QString scriptPath = appDir + QStringLiteral("/app/run.sh");
 
-    if (launchInProgress) {
-        qWarning() << "Ignore duplicated launch request while previous app handoff is still running:" << appinfo.Path;
+    if (m_launchInProgress) {
         return false;
     }
 
-    if (launchCooldown.isValid() && launchCooldown.elapsed() < 800) {
-        qWarning() << "Ignore duplicated launch request during cooldown:" << appinfo.Path;
+    if (m_launchCooldown.isValid() && m_launchCooldown.elapsed() < 800) {
         return false;
     }
 
     if (!QFile::exists(scriptPath)) {
-        qWarning() << "App launcher script missing:" << scriptPath;
         return false;
     }
 
-    launchInProgress = true;
-    setEnabled(false);
+    m_launchInProgress = true;
+    m_launchQuitScheduled = false;
+    clearSelectedApp();
+    m_pendingLaunchAppInfo = appinfo;
+    m_launcherScriptPath = scriptPath;
+    m_launchReadyFilePath = runtimeTmpDir() + QStringLiteral("/app_launch_ready");
+    m_launchFailFilePath = runtimeTmpDir() + QStringLiteral("/app_launch_failed");
+    QFile::remove(m_launchReadyFilePath);
+    QFile::remove(m_launchFailFilePath);
 
-    const QStringList args{appinfo.Path};
-    qDebug() << "Desktop launching app:" << appinfo.Path << "via" << scriptPath;
-
-    if (!QProcess::startDetached(scriptPath, args)) {
-        qWarning() << "Failed to start app launcher for" << appinfo.Path;
-        launchInProgress = false;
-        setEnabled(true);
-        return false;
-    }
-
-    launchCooldown.restart();
-    qDebug() << "Desktop exiting after handoff to app:" << appinfo.Path;
-    QTimer::singleShot(0, qApp, &QCoreApplication::quit);
+    setLoadingAppName(appinfo.Name);
+    setLoadingVisible(true);
+    QTimer::singleShot(30, this, &Widget::startPendingLaunch);
     return true;
 }
 
-QVector<QRect> Widget::calcAppRects(quint32 screenW, quint32 screenH)
+void Widget::startPendingLaunch()
 {
-    QVector<QRect> rects;
+    if (!m_launchInProgress || m_launchQuitScheduled) {
+        return;
+    }
 
-    int spacing = 5;
-    int rows = 2, cols = 2;
-    int squareW = (screenW - (cols + 1) * spacing) / cols;
-    int squareH = (screenH - (rows + 1) * spacing) / rows;
+    const QStringList args{m_pendingLaunchAppInfo.Path};
+    if (!QProcess::startDetached(m_launcherScriptPath, args)) {
+        m_launchInProgress = false;
+        setLoadingVisible(false);
+        return;
+    }
 
-    int size = qMin(squareW, squareH);
+    m_launchCooldown.restart();
+    m_launchWaitTimer.start();
+    m_launchReadyPollTimer->start();
+}
 
-    for (int r = 0; r < rows; ++r)
-    {
-        for (int c = 0; c < cols; ++c)
-        {
-            int x = spacing + c * (size + spacing);
-            int y = spacing + r * (size + spacing) + 30;
+void Widget::checkLaunchReady()
+{
+    if (!m_launchInProgress || m_launchQuitScheduled) {
+        m_launchReadyPollTimer->stop();
+        return;
+    }
 
-            rects.append(QRect(x, y, size, size));
+    if (QFile::exists(m_launchFailFilePath)) {
+        QFile::remove(m_launchFailFilePath);
+        m_launchReadyPollTimer->stop();
+        m_launchInProgress = false;
+        setLoadingVisible(false);
+        return;
+    }
+
+    const bool isReady = QFile::exists(m_launchReadyFilePath);
+    if (isReady && m_launchWaitTimer.elapsed() < MinLoadingDisplayMs) {
+        return;
+    }
+
+    if (isReady || m_launchWaitTimer.elapsed() >= LaunchReadyTimeoutMs) {
+        finishLaunchHandoff();
+    }
+}
+
+void Widget::finishLaunchHandoff()
+{
+    if (m_launchQuitScheduled) {
+        return;
+    }
+
+    m_launchQuitScheduled = true;
+    m_launchReadyPollTimer->stop();
+    QTimer::singleShot(0, qApp, &QCoreApplication::quit);
+}
+
+QString Widget::runtimeTmpDir() const
+{
+    return QCoreApplication::applicationDirPath() + QStringLiteral("/tmp");
+}
+
+QString Widget::iconSourceForQml(const QString &resourcePath, quint8 appId) const
+{
+    QPixmap src(resourcePath);
+    if (src.isNull()) {
+        return resourcePath.startsWith(QStringLiteral(":/"))
+            ? QStringLiteral("qrc%1").arg(resourcePath)
+            : resourcePath;
+    }
+
+    QPixmap rounded(80, 80);
+    rounded.fill(Qt::transparent);
+
+    QPainter painter(&rounded);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+
+    QPainterPath clipPath;
+    clipPath.addRoundedRect(0, 0, 80, 80, 20, 20);
+    painter.setClipPath(clipPath);
+    painter.drawPixmap(0, 0, src.scaled(80, 80, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+
+    const QString outputPath = runtimeTmpDir() + QStringLiteral("/qml_icon_%1.png").arg(appId);
+    rounded.save(outputPath, "PNG");
+    return QUrl::fromLocalFile(outputPath).toString();
+}
+
+QString Widget::prepareCarImage() const
+{
+    QImage image(QStringLiteral(":/images/car.png"));
+    if (image.isNull()) {
+        return QStringLiteral("qrc:/images/car.png");
+    }
+
+    QImage argb = image.convertToFormat(QImage::Format_ARGB32);
+    for (int y = 0; y < argb.height(); ++y) {
+        QRgb *line = reinterpret_cast<QRgb *>(argb.scanLine(y));
+        for (int x = 0; x < argb.width(); ++x) {
+            const QColor color(line[x]);
+            if (color.red() > 240 && color.green() > 240 && color.blue() > 240) {
+                line[x] = qRgba(0, 0, 0, 0);
+            }
         }
     }
 
-    return rects;
+    int left = argb.width();
+    int top = argb.height();
+    int right = -1;
+    int bottom = -1;
+
+    for (int y = 0; y < argb.height(); ++y) {
+        for (int x = 0; x < argb.width(); ++x) {
+            if (qAlpha(argb.pixel(x, y)) > 0) {
+                left = qMin(left, x);
+                top = qMin(top, y);
+                right = qMax(right, x);
+                bottom = qMax(bottom, y);
+            }
+        }
+    }
+
+    if (right >= left && bottom >= top) {
+        const int margin = 8;
+        const QRect cropRect(qMax(0, left - margin),
+                             qMax(0, top - margin),
+                             qMin(argb.width() - 1, right + margin) - qMax(0, left - margin) + 1,
+                             qMin(argb.height() - 1, bottom + margin) - qMax(0, top - margin) + 1);
+        argb = argb.copy(cropRect);
+    }
+
+    const QString outputPath = runtimeTmpDir() + QStringLiteral("/qml_car.png");
+    argb.save(outputPath, "PNG");
+    return QUrl::fromLocalFile(outputPath).toString();
 }
 
-void Widget::paintEvent(QPaintEvent *event)
+void Widget::resizeEvent(QResizeEvent *event)
 {
-    Q_UNUSED(event);
+    QWidget::resizeEvent(event);
+    layoutQuickUi();
 }

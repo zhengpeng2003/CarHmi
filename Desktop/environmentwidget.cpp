@@ -2,11 +2,15 @@
 #include <QPainter>
 #include <QResizeEvent>
 #include <QImage>
+#include <QMouseEvent>
 
 EnvironmentWidget::EnvironmentWidget(QWidget *parent)
     : QWidget(parent)
 {
     setAttribute(Qt::WA_TranslucentBackground);
+    m_carDriveAnimation = new QPropertyAnimation(this, "carOffsetX", this);
+    m_carDriveAnimation->setDuration(900);
+    m_carDriveAnimation->setEasingCurve(QEasingCurve::OutCubic);
 }
 
 void EnvironmentWidget::setBackgroundImage(const QString &path)
@@ -20,6 +24,27 @@ void EnvironmentWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
     rebuildCache();
+}
+
+void EnvironmentWidget::setCarOffsetX(int offset)
+{
+    if (m_carOffsetX == offset) {
+        return;
+    }
+
+    m_carOffsetX = offset;
+    update();
+}
+
+void EnvironmentWidget::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton && carRect().contains(event->pos())) {
+        startCarDriveAnimation();
+        event->accept();
+        return;
+    }
+
+    QWidget::mouseReleaseEvent(event);
 }
 
 void EnvironmentWidget::rebuildCache()
@@ -48,6 +73,35 @@ void EnvironmentWidget::rebuildCache()
                                                        Qt::SmoothTransformation);
 }
 
+QPoint EnvironmentWidget::baseCarTopLeft() const
+{
+    return rect().center() - QPoint(m_cachedCarPixmap.width() / 2,
+                                    m_cachedCarPixmap.height() / 2 + 30);
+}
+
+QRect EnvironmentWidget::carRect() const
+{
+    if (m_cachedCarPixmap.isNull()) {
+        return QRect();
+    }
+
+    return QRect(baseCarTopLeft() + QPoint(m_carOffsetX, 0), m_cachedCarPixmap.size());
+}
+
+void EnvironmentWidget::startCarDriveAnimation()
+{
+    if (m_cachedCarPixmap.isNull() || !m_carDriveAnimation) {
+        return;
+    }
+
+    const int startOffset = width() + 20 - baseCarTopLeft().x();
+    m_carDriveAnimation->stop();
+    setCarOffsetX(startOffset);
+    m_carDriveAnimation->setStartValue(startOffset);
+    m_carDriveAnimation->setEndValue(0);
+    m_carDriveAnimation->start();
+}
+
 void EnvironmentWidget::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
@@ -61,9 +115,7 @@ void EnvironmentWidget::paintEvent(QPaintEvent *event)
     painter.drawRoundedRect(rect(), radius, radius);
 
     if (!m_cachedCarPixmap.isNull()) {
-        const QPoint center = rect().center() - QPoint(m_cachedCarPixmap.width() / 2,
-                                                       m_cachedCarPixmap.height() / 2 + 30);
-        painter.drawPixmap(center, m_cachedCarPixmap);
+        painter.drawPixmap(baseCarTopLeft() + QPoint(m_carOffsetX, 0), m_cachedCarPixmap);
     }
 
     const QString tempText = QStringLiteral("温度: %1°C").arg(m_temperature, 0, 'f', 1);

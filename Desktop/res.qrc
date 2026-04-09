@@ -6,5 +6,10 @@
         <file>images/car.png</file>
         <file>images/default.png</file>
         <file>images/map.png</file>
+        <file>images/RearCam.png</file>
+        <file>qml/main.qml</file>
+        <file>qml/AppIcon.qml</file>
+        <file>qml/EnvironmentPanel.qml</file>
+        <file>qml/LoadingOverlay.qml</file>
     </qresource>
 </RCC>

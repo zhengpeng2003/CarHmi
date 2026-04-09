@@ -11,10 +11,15 @@ public:
 
     void setAppInfo(quint8 id, const QString &name, const QString &exePath, const QString &iconPath);
     quint8 appId() const { return m_id; }
+    void setSelected(bool selected);
+    bool isSelected() const { return m_selected; }
 
 private:
+    void updateAppearance();
+
     quint8 m_id = 0;
     QString m_exePath;
+    bool m_selected = false;
 
     QLabel *iconLabel;
     QLabel *nameLabel;

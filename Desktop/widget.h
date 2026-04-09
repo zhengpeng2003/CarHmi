@@ -1,84 +1,109 @@
 #ifndef WIDGET_H
 #define WIDGET_H
 
-#include <QSettings>
-#include <QWidget>
-#include <QVector>
-#include <QRect>
-#include <QMouseEvent>
-#include <QPropertyAnimation>
-#include <QProcess>
-#include <QPoint>
+#include "appinfo.h"
+
 #include <QElapsedTimer>
+#include <QQuickWidget>
+#include <QVariantMap>
+#include <QVector>
+#include <QWidget>
 
-#include "appwidget.h"
-#include "environmentwidget.h"
-
-QT_BEGIN_NAMESPACE
-namespace Ui { class Widget; }
-QT_END_NAMESPACE
-
-struct AppInfo
-{
-    quint8 Id;
-    QString Name;
-    QString Path;
-    QString Log;
-
-    AppInfo(){}
-    AppInfo(quint8 id, const QString &name, const QString &path, const QString &log)
-        : Id(id), Name(name), Path(path), Log(log){}
-};
+class QResizeEvent;
+class QTimer;
 
 class Widget : public QWidget
 {
     Q_OBJECT
+    Q_PROPERTY(int pageCount READ pageCount NOTIFY pageCountChanged)
+    Q_PROPERTY(int currentPage READ currentPage NOTIFY currentPageChanged)
+    Q_PROPERTY(int selectedAppId READ selectedAppId NOTIFY selectedAppIdChanged)
+    Q_PROPERTY(double temperature READ temperature NOTIFY temperatureChanged)
+    Q_PROPERTY(double humidity READ humidity NOTIFY humidityChanged)
+    Q_PROPERTY(bool loadingVisible READ loadingVisible NOTIFY loadingVisibleChanged)
+    Q_PROPERTY(QString loadingAppName READ loadingAppName NOTIFY loadingAppNameChanged)
+    Q_PROPERTY(QString carImageSource READ carImageSource CONSTANT)
 
 public:
-    Widget(QWidget *parent = nullptr);
-    ~Widget();
+    explicit Widget(QWidget *parent = nullptr);
+    ~Widget() override = default;
 
-    QVector<QRect> calcAppRects(quint32 screenW, quint32 screenH);
     bool StartApp(const AppInfo &appinfo);
 
+    int pageCount() const;
+    int currentPage() const;
+    int selectedAppId() const;
+    double temperature() const;
+    double humidity() const;
+    bool loadingVisible() const;
+    QString loadingAppName() const;
+    QString carImageSource() const;
+
+    Q_INVOKABLE int appCount() const;
+    Q_INVOKABLE QVariantMap appAt(int index) const;
+    Q_INVOKABLE void appClicked(int appId);
+    Q_INVOKABLE void pageChanged(int pageIndex);
+    Q_INVOKABLE void clearSelectionFromQml();
+
 protected:
-    void paintEvent(QPaintEvent *event) override;
-    void mousePressEvent(QMouseEvent *event) override;
-    void mouseMoveEvent(QMouseEvent *event) override;
-    void mouseReleaseEvent(QMouseEvent *event) override;
-    bool eventFilter(QObject *watched, QEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+
+signals:
+    void pageCountChanged();
+    void currentPageChanged();
+    void selectedAppIdChanged();
+    void temperatureChanged();
+    void humidityChanged();
+    void loadingVisibleChanged();
+    void loadingAppNameChanged();
 
 private:
-    void InitTestApps();
-    AppInfo createApp(quint8 id, const QString &exeName, const QRect &rect);
-    EnvironmentWidget* createEnvironmentPanel(const QRect &rect, double temp, double hum, const QString &bg);
-    bool handlePress(const QPoint &globalPos, AppWidget *appWidget);
-    bool handleMove(const QPoint &globalPos);
-    bool handleRelease(const QPoint &globalPos, AppWidget *appWidget);
-    const AppInfo *findAppInfo(quint8 id) const;
-    void snapToCurrentPage();
-    bool isInLeftArea(const QPoint &localPos) const;
+    void initQuickUi();
+    void layoutQuickUi();
+    void initTestApps();
+    AppInfo createAppInfo(quint8 id, const QString &exeName) const;
+    const AppInfo *findAppInfo(int appId) const;
+    void selectAppById(int appId);
+    void clearSelectedApp();
+    void setCurrentPageInternal(int pageIndex);
+    void setSelectedAppIdInternal(int appId);
+    void setLoadingVisible(bool visible);
+    void setLoadingAppName(const QString &appName);
+    void startPendingLaunch();
+    void checkLaunchReady();
+    void finishLaunchHandoff();
+    QString runtimeTmpDir() const;
+    QString iconSourceForQml(const QString &resourcePath, quint8 appId) const;
+    QString prepareCarImage() const;
 
 private:
-    Ui::Widget *ui;
+    QVector<AppInfo> m_appInfos;
+    QQuickWidget *m_quickWidget = nullptr;
 
-    QVector<AppInfo> _AppInfos;
-    EnvironmentWidget *_envPanel = nullptr;
+    int m_currentPage = 0;
+    int m_selectedAppId = -1;
+    double m_temperature = 26.3;
+    double m_humidity = 58.0;
+    bool m_loadingVisible = false;
+    QString m_loadingAppName;
+    QString m_carImageSource;
 
-    QWidget *leftContainer = nullptr;
-    QVector<QWidget*> pages;
-    int currentPage = 0;
+    bool m_launchInProgress = false;
+    bool m_launchQuitScheduled = false;
+    QElapsedTimer m_launchCooldown;
+    QElapsedTimer m_launchWaitTimer;
+    QTimer *m_selectionResetTimer = nullptr;
+    QTimer *m_launchReadyPollTimer = nullptr;
+    AppInfo m_pendingLaunchAppInfo;
+    QString m_launcherScriptPath;
+    QString m_launchReadyFilePath;
+    QString m_launchFailFilePath;
 
-    QPoint pressPos;
-    int startX = 0;
-    bool isDragging = false;
-    bool launchInProgress = false;
-    AppWidget *pressedAppWidget = nullptr;
-    QElapsedTimer launchCooldown;
-
-    static constexpr int ClickThreshold = 16;
-    static constexpr int DragThreshold = 12;
-    static constexpr int PageSwitchThreshold = 60;
+    static constexpr int AppsPerPage = 4;
+    static constexpr int SelectionConfirmTimeoutMs = 1800;
+    static constexpr int LaunchReadyPollIntervalMs = 80;
+    static constexpr int LaunchReadyTimeoutMs = 3500;
+    static constexpr int MinLoadingDisplayMs = 450;
 };
 
 #endif

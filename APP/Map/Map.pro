@@ -8,10 +8,10 @@ isEmpty(PLATFORM) {
 }
 
 
-    #NMEA_PATH = /work/Qt_Object/maptest/nmealib_api/nmealib
+    NMEA_PATH = /work/Qt_Object/maptest/nmealib_api/nmealib
     message("Using desktop NMEA path")
 
-    NMEA_PATH = /work/Qt_Object/maptest/nmealib_api/nmelib_arm
+    #NMEA_PATH = /work/Qt_Object/maptest/nmealib_api/nmelib_arm
    #改为你板子上的实际路径#
     message("Using ARM board NMEA path")
 
