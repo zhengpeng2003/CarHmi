@@ -16,7 +16,7 @@ Rectangle {
 
     MapView {
         id: mapView
-        anchors.fill: parent
+        anchors.fill: parent//填满父元素贴边
     }
 
     SearchBar {
@@ -44,7 +44,7 @@ Rectangle {
         onResumeFollowRequested: gpsManager.resumeGpsFollow()
     }
 
-    Column {
+    Column {//垂直排列
         id: zoomButtons
         anchors.left: searchBar.left
         anchors.top: searchBar.bottom
@@ -187,4 +187,6 @@ Rectangle {
             keyboardShowing = false
         }
     }
+
 }
+

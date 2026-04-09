@@ -1,8 +1,8 @@
 import QtQuick 2.11
-import QtQuick.Controls 2.4
+import QtQuick.Controls 2.2   // 使用 2.2 以获得更好的兼容性
 
 Rectangle {
-    id: root
+    id: searchBarRoot
     height: content.implicitHeight + 8
     color: "#66000000"
     radius: 4
@@ -13,7 +13,7 @@ Rectangle {
 
     property alias inputField: inputField
     property alias inputFieldText: inputField.text
-    signal inputFieldFocusChanged(bool focused)  // 确保信号名正确
+    signal inputFieldFocusChanged(bool focused)
 
     signal searchRequested(string keyword)
     signal resultSelected(int index)
@@ -22,20 +22,15 @@ Rectangle {
     signal clearHistoryRequested()
     signal resumeFollowRequested()
 
-    function getInputText() {
-        return inputField.text
-    }
-
+    function getInputText() { return inputField.text }
     function setInputText(text) {
         inputField.text = text
         inputField.cursorPosition = text.length
     }
-
     function setKeyword(value) {
         inputField.text = value
         inputField.forceActiveFocus()
     }
-
     function clearSearchUi() {
         resultsModel = []
         inputField.text = ""
@@ -48,25 +43,29 @@ Rectangle {
         spacing: 4
 
         Row {
+            id: buttonRow
             width: parent.width
             height: 30
             spacing: 4
 
             TextField {
                 id: inputField
-                width: parent.width - searchButton.width - retryButton.width - followButton.width - 12
+                // 计算宽度：总宽减去所有按钮宽度和间距
+                width: parent.width
+                       - searchButton.width
+                       - retryButton.width
+                       - followButton.width
+                       - exitButton.width
+                       - (4 * parent.spacing)  // 4个间隙
                 height: parent.height
                 placeholderText: "输入地点关键字"
                 font.pixelSize: 12
 
                 onActiveFocusChanged: {
-                    console.log("InputField focus changed:", activeFocus)  // 添加调试输出
-                    root.inputFieldFocusChanged(activeFocus)
+                    console.log("InputField focus changed:", activeFocus)
+                    searchBarRoot.inputFieldFocusChanged(activeFocus)
                 }
-
-                onAccepted: {
-                    root.searchRequested(text)
-                }
+                onAccepted: searchBarRoot.searchRequested(text)
             }
 
             Button {
@@ -75,9 +74,7 @@ Rectangle {
                 height: parent.height
                 text: "搜索"
                 font.pixelSize: 11
-                onClicked: {
-                    root.searchRequested(inputField.text)
-                }
+                onClicked: searchBarRoot.searchRequested(inputField.text)
             }
 
             Button {
@@ -86,7 +83,7 @@ Rectangle {
                 height: parent.height
                 text: "重试"
                 font.pixelSize: 11
-                onClicked: root.retryRequested()
+                onClicked: searchBarRoot.retryRequested()
             }
 
             Button {
@@ -95,13 +92,27 @@ Rectangle {
                 height: parent.height
                 text: "跟随"
                 font.pixelSize: 11
-                onClicked: root.resumeFollowRequested()
+                onClicked: searchBarRoot.resumeFollowRequested()
+            }
+
+            Button {
+                id: exitButton
+                width: 52
+                height: parent.height
+                text: "退出"
+                font.pixelSize: 11
+                onClicked: {
+                    if (typeof appQuitter !== "undefined" && appQuitter)
+                        appQuitter.quitApp()
+                    else
+                        console.warn("appQuitter not available")
+                }
             }
         }
 
         Text {
             width: parent.width
-            text: root.message
+            text: searchBarRoot.message
             color: "#ffe08a"
             font.pixelSize: 11
             wrapMode: Text.Wrap
@@ -112,7 +123,6 @@ Rectangle {
             visible: historyRepeater.count > 0
             height: visible ? 24 : 0
             color: "transparent"
-
             Row {
                 anchors.fill: parent
                 spacing: 4
@@ -125,12 +135,12 @@ Rectangle {
                 }
                 Repeater {
                     id: historyRepeater
-                    model: root.historyModel
+                    model: searchBarRoot.historyModel
                     delegate: Button {
                         height: 20
                         text: modelData
                         font.pixelSize: 10
-                        onClicked: root.historySelected(modelData)
+                        onClicked: searchBarRoot.historySelected(modelData)
                     }
                 }
                 Button {
@@ -138,7 +148,7 @@ Rectangle {
                     height: 20
                     text: "清空"
                     font.pixelSize: 10
-                    onClicked: root.clearHistoryRequested()
+                    onClicked: searchBarRoot.clearHistoryRequested()
                 }
             }
         }
@@ -155,7 +165,7 @@ Rectangle {
                 id: resultsView
                 anchors.fill: parent
                 anchors.margins: 4
-                model: root.resultsModel
+                model: searchBarRoot.resultsModel
                 clip: true
                 delegate: Rectangle {
                     width: ListView.view.width
@@ -181,8 +191,8 @@ Rectangle {
                             text: "定位"
                             font.pixelSize: 9
                             onClicked: {
-                                root.resultSelected(index)
-                                root.clearSearchUi()
+                                searchBarRoot.resultSelected(index)
+                                searchBarRoot.clearSearchUi()
                             }
                         }
                     }

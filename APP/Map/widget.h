@@ -15,6 +15,7 @@ class Widget : public QWidget
 
 public:
     Widget(QWidget *parent = nullptr);
+    Q_INVOKABLE void quitApp();
     ~Widget();
 
 private:

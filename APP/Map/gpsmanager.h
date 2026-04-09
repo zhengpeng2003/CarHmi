@@ -51,7 +51,7 @@ public:
     Q_INVOKABLE void resumeGpsFollow();
 
 signals:
-    void positionChanged(double lat, double lng);
+    void positionChanged();
     void searchLocationFound(double lat, double lng, QString keyword);
     void searchFailed(QString keyword);
     void searchMessageChanged();
@@ -92,6 +92,8 @@ private:
     QNetworkAccessManager *networkManager = nullptr;
     bool useSerial = false;
     qint64 lastSerialTime = 0;
+    int m_emptyReadCount = 0;
+    bool m_serialSilenceReported = false;
     double m_lat = 39.9;
     double m_lng = 116.3;
     QString m_searchMessage;
@@ -106,4 +108,4 @@ private:
     bool m_sslAvailable = false;
 };
 
-#endif
+#endif // GPSMANAGER_H

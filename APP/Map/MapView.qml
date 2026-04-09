@@ -18,16 +18,12 @@ Item {
         anchors.fill: parent
         plugin: mapPlugin
         zoomLevel: 15
-        center: QtPositioning.coordinate(gpsManager.latitude, gpsManager.longitude)
 
         gesture.enabled: true
-        gesture.acceptedGestures: MapGestureArea.PinchGesture | MapGestureArea.PanGesture
-
-        onCenterChanged: {
-            if (!root.internalCenterUpdate) {
-                gpsManager.enterManualBrowse()
-            }
-        }
+        gesture.acceptedGestures: MapGestureArea.PinchGesture | MapGestureArea.PanGesture | MapGestureArea.FlickGesture
+        gesture.onPanStarted: gpsManager.enterManualBrowse()
+        gesture.onFlickStarted: gpsManager.enterManualBrowse()
+        gesture.onPinchStarted: gpsManager.enterManualBrowse()
 
         MapQuickItem {
             id: searchMarker
@@ -50,6 +46,8 @@ Item {
         searchMarker.visible = showMarker
         root.internalCenterUpdate = false
     }
+
+    Component.onCompleted: applyCenter(gpsManager.latitude, gpsManager.longitude, false)
 
     Connections {
         target: gpsManager
