@@ -86,65 +86,83 @@ MainWindow::MainWindow(QWidget *parent)
 }
 void MainWindow::open_project()
 {
-
-
-
     QFileDialog open_dialog(this);
-    open_dialog.setMinimumSize(480, 272);
-    open_dialog.setFileMode(QFileDialog::Directory);//一个目录
+
+    // 关键：禁用原生对话框，使样式表生效
+    open_dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+
+    // 设置样式表，整体缩小字体以适应 480x272
+    open_dialog.setStyleSheet(
+        "QFileDialog { font-size: 8px; }"
+        "QListView { font-size: 8px; }"
+        "QTreeView { font-size: 8px; }"
+        "QTableWidget { font-size: 8px; }"
+        "QPushButton { font-size: 8px; }"
+        "QLabel { font-size: 8px; }"
+        "QLineEdit { font-size: 8px; }"
+        );
+
+    open_dialog.setFileMode(QFileDialog::Directory);
     open_dialog.setViewMode(QFileDialog::Detail);
     open_dialog.setWindowTitle("打开文件");
     open_dialog.setDirectory(QDir::current());
-    open_dialog.resize(480,272);
+
+    // 固定大小 480x272
+    open_dialog.resize(480, 272);
     open_dialog.setMinimumSize(480, 272);
 
-
-    if(open_dialog.exec()==QDialog::Rejected)
-    return;
-    QStringList filename;
-    filename=open_dialog.selectedFiles();
-    if(filename.size()<=0)
+    if (open_dialog.exec() == QDialog::Rejected)
         return;
-    else
-    {
 
-        //connect(this,&MainWindow::signal_oepn,dynamic_cast<protree*>(_protree),&protree::opentreewidget);
-        emit signal_oepn(filename.at(0));
+    QStringList filenames = open_dialog.selectedFiles();
+    if (filenames.isEmpty())
+        return;
 
-
-        QString current_path=filename.at(0);
-    }
+    emit signal_oepn(filenames.at(0));
 }
- void MainWindow::create_project()
-    {
+void MainWindow::create_project()
+{
+    // 创建向导对象
+    Wizard *wizard = new Wizard(this);
 
+    // ========== 适配小屏幕 ==========
+    // 禁用原生对话框风格（让样式表生效）
+    wizard->setOption(QWizard::NoCancelButton, false); // 保留取消按钮，但可以设置其他选项
+    // 注意：QWizard 没有 DontUseNativeDialog 选项，但可以通过样式表直接生效（不使用原生外观需要设置 wizard->setWizardStyle(QWizard::ModernStyle) 等）
+    wizard->setWizardStyle(QWizard::ModernStyle);  // 强制使用 Qt 自绘风格，而不是原生对话框
 
-        // 创建向导对象（堆分配）
-        Wizard *wizard = new Wizard(this);
+    // 设置样式表缩小字体
+    wizard->setStyleSheet(
+        "QWizard { font-size: 8px; }"
+        "QWizardPage { font-size: 8px; }"
+        "QLabel { font-size: 8px; }"
+        "QLineEdit { font-size: 8px; }"
+        "QPushButton { font-size: 8px; }"
+        "QCheckBox { font-size: 8px; }"
+        "QRadioButton { font-size: 8px; }"
+        "QComboBox { font-size: 8px; }"
+        );
 
-        // 设置窗口标题
-        wizard->setWindowTitle("创建项目");
-        connect(wizard,&Wizard::wizard_signal,dynamic_cast<protree*>(_protree),&protree::addtreewidget);//与protreewidget连接
-        // 模态显示对话框（阻塞直到关闭
-        if (wizard->exec() == QDialog::Accepted) {
-            // 获取用户输入的数据
-            QString projectName = wizard->field("projectName").toString();
-            QString projectPath = wizard->field("projectPath").toString();
+    // 固定大小 480x272
+    wizard->resize(480, 272);
+    wizard->setMinimumSize(480, 272);
+    // 可选：居中显示
+    wizard->move(this->x() + (this->width() - wizard->width()) / 2,
+                 this->y() + (this->height() - wizard->height()) / 2);
 
+    // 连接信号
+    connect(wizard, &Wizard::wizard_signal,
+            dynamic_cast<protree*>(_protree), &protree::addtreewidget);
 
-
-            // 实际创建项目的代码
-            // createProject(projectName, projectPath);
-
-
-        }
-        else
-        {
-
-            delete wizard;
-        }
-
+    // 模态显示
+    if (wizard->exec() == QDialog::Accepted) {
+        // 可以在这里获取数据，但目前没有实际使用
+        // QString projectName = wizard->field("projectName").toString();
+        // QString projectPath = wizard->field("projectPath").toString();
     }
+
+    delete wizard;  // 无论 Accepted 还是 Rejected 都应该删除
+}
 
 
 

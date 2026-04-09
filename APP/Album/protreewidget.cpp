@@ -267,7 +267,6 @@ void protreewidget::open_tree(const QString &path)
         //    : QThread(parent),_scr_path(scr_path),_bststop(false),_name(name),_file_cout(file_cout)
        _thread_open_pro=std::make_shared<opentreethread>(path,open_path_name,file_cout,this,nullptr);
         _dialog_progess = new QProgressDialog(this);
-
         connect(_thread_open_pro.get(),&opentreethread::progressupdate,this,&protreewidget::progressupdate);
         connect(_thread_open_pro.get(),&opentreethread::progressfinish,this,&protreewidget::progressfinish);
         connect(_thread_open_pro.get(),&opentreethread::rootItemReady,this,&protreewidget::onRootItemReady);
@@ -353,22 +352,32 @@ void protreewidget::slnextupdate()
 
 void protreewidget::set_music()
 {
-    QFileDialog dialog;
+    QFileDialog dialog(this);  // 建议传入父对象
     dialog.setFileMode(QFileDialog::ExistingFile);
     dialog.setViewMode(QFileDialog::Detail);
     dialog.setDirectory(QDir::current());
     dialog.setWindowTitle("设置播放音乐");
     dialog.setNameFilter("*.mp3");
 
-    QStringList filenames;
-    if(dialog.exec())
-    {
-        filenames=dialog.selectedFiles();
-    }
-    else
+    // ========== 适配小屏幕 ==========
+    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+    dialog.setStyleSheet(
+        "QFileDialog { font-size: 8px; }"
+        "QListView { font-size: 8px; }"
+        "QTreeView { font-size: 8px; }"
+        "QTableWidget { font-size: 8px; }"
+        "QPushButton { font-size: 8px; }"
+        "QLabel { font-size: 8px; }"
+        "QLineEdit { font-size: 8px; }"
+        );
+    dialog.resize(480, 272);
+    dialog.setMinimumSize(480, 272);
+
+    if (dialog.exec() != QDialog::Accepted)
         return;
 
-    if(filenames.length()<=0)
+    QStringList filenames = dialog.selectedFiles();
+    if (filenames.isEmpty())
         return;
 
     _mediaplerlist.clear();
