@@ -1,13 +1,16 @@
 # 桌面效果
 
-<img width="509" alt="桌面效果1" src="https://github.com/user-attachments/assets/cc2bec8a-279b-4537-9918-142d7bb88b88">
-<img width="495" alt="桌面效果2" src="https://github.com/user-attachments/assets/fc514825-da89-4cdb-848a-4a7b9c0b19fe">
+<img width="489" height="321" alt="603cce0b7cbc2033058c9d020fd63b82" src="https://github.com/user-attachments/assets/b36f79a3-68bb-4e70-8980-bfc502fc6f24" />
+
+<img width="495" height="316" alt="1cfb227c4c85514665d0953ac98ae5be" src="https://github.com/user-attachments/assets/971a7384-2ef9-4e41-b684-1abc9a76d81b" />
+
 
 ---
 
 ## 地图
 
-<img width="490" alt="地图" src="https://github.com/user-attachments/assets/7ded2a5c-5992-44ac-9377-239001148234">
+<img width="491" height="316" alt="f1fc0f9379249c0a097493089485f69c" src="https://github.com/user-attachments/assets/58fa353d-929a-4d22-9f84-a6bec9122226" />
+
 
 ---
 
@@ -30,4 +33,5 @@
 
 ## 倒车影像
 
-<img width="481" height="319" alt="8ed122b97023c843438268698d61d7f3" src="https://github.com/user-attachments/assets/91f57751-9a67-4047-b961-ab607de87b4f" />
+<img width="494" height="330" alt="db069ccad8762d72acf2e4dc0a9f7a53" src="https://github.com/user-attachments/assets/82b40b95-b5fe-4296-b843-4d7d185ab7c7" />
+
